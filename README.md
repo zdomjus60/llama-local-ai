@@ -178,8 +178,8 @@ chmod +x setup_credentials.sh start_chat.sh
 The script asks you for email, name and password and saves them in
 `$HOME/llama-ai/owui.env`. Nothing is hardcoded.
 
-> Note: replace the GitHub address above with the address of the repo where
-> you are reading this README. The two scripts come from that repo.
+> Note: if you fork this project, replace the GitHub address above with the
+> address of your fork, so the scripts are taken from your copy.
 
 ---
 
