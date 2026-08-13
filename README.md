@@ -228,4 +228,4 @@ In the chat, pick the model **Qwen3 4B (Web)**.
 - llama.cpp: https://github.com/ggml-org/llama.cpp
 - Open WebUI: https://github.com/open-webui/open-webui
 - SearXNG: https://github.com/searxng/searxng
-- Qwen3-8B GGUF: https://huggingface.co/Qwen/Qwen3-8B-GGUF
+- Qwen3-4B GGUF: https://huggingface.co/Qwen/Qwen3-4B-GGUF

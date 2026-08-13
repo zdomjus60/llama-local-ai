@@ -1,6 +1,6 @@
 #!/bin/bash
 # Start llama-server + SearXNG + Open WebUI and open the browser
-# with the Qwen3 8B chat (web search enabled via SearXNG).
+# with the Qwen3 4B chat (web search enabled via SearXNG).
 
 set -euo pipefail
 
@@ -173,7 +173,7 @@ else
   create_web_model "deepseek-web" "DeepSeek-V2-Lite-Chat.IQ2_S" "DeepSeek V2 Lite (Web)" "DeepSeek V2 Lite MoE with web search enabled"
 
 
-  # 3) refresh the model cache so "Qwen3 8B (Web)" shows in the UI
+  # 3) refresh the model cache so "Qwen3 4B (Web)" shows in the UI
   curl -s -m 15 "http://localhost:$OWUI_PORT/api/v1/models" -H "$AUTH" > /dev/null
 fi
 
@@ -182,5 +182,5 @@ URL="http://localhost:$OWUI_PORT"
 xdg-open "$URL" > /dev/null 2>&1 || sensible-browser "$URL" > /dev/null 2>&1 || true
 
 echo
-echo "Done. Pick the \"Qwen3 8B (Web)\" model in the chat."
+echo "Done. Pick the \"Qwen3 4B (Web)\" model in the chat."
 echo "Web search is enabled by default: the model searches the web on its own."
