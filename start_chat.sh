@@ -1,6 +1,6 @@
 #!/bin/bash
-# Avvia llama-server + SearXNG + Open WebUI e apre il browser
-# con la chat Qwen3 8B (ricerca web attiva via SearXNG).
+# Start llama-server + SearXNG + Open WebUI and open the browser
+# with the Qwen3 8B chat (web search enabled via SearXNG).
 
 set -euo pipefail
 
@@ -19,27 +19,27 @@ LLAMA_PORT=8080
 mkdir -p "$LOG_DIR"
 cd "$DIR"
 
-[ -f "$ENV_FILE" ] || { echo "Manca $ENV_FILE"; exit 1; }
+[ -f "$ENV_FILE" ] || { echo "Missing $ENV_FILE"; exit 1; }
 set -a
 . "$ENV_FILE"
 set +a
 
-echo "==> Avvio servizi..."
+echo "==> Starting services..."
 
-# --- SearXNG (meta-search, porta 8888) ---
+# --- SearXNG (meta-search, port 8888) ---
 if pgrep -f "[s]earx.webapp" > /dev/null; then
-  echo "  [ok] SearXNG gia' attivo"
+  echo "  [ok] SearXNG already running"
 else
   SEARXNG_SETTINGS_PATH="$SEARXNG_DIR/settings.yml" \
     setsid "$VENV/bin/python" -m searx.webapp > "$LOG_DIR/searxng.log" 2>&1 < /dev/null &
-  echo "  [..] SearXNG avviato (http://localhost:8888)"
+  echo "  [..] SearXNG started (http://localhost:8888)"
 fi
 
-# --- llama-server (router multi-modello, porta 8080) ---
-# NB: --models-max 1: al cambio modello (Open WebUI) il precedente viene
-# scaricato (LRU), cosi' in RAM resta un solo modello
+# --- llama-server (multi-model router, port 8080) ---
+# NB: --models-max 1: when switching models (Open WebUI) the previous one is
+# unloaded (LRU), so only one model stays in RAM
 if curl -s -m 2 -o /dev/null "http://localhost:$LLAMA_PORT/health"; then
-  echo "  [ok] llama-server gia' attivo"
+  echo "  [ok] llama-server already running"
 else
   setsid ./build/bin/llama-server \
     --models-dir models \
@@ -52,12 +52,12 @@ else
     --reasoning off \
     --host 0.0.0.0 \
     --port "$LLAMA_PORT" > "$LOG_DIR/llama-server.log" 2>&1 < /dev/null &
-  echo "  [..] llama-server avviato (attendo il caricamento del modello...)"
+  echo "  [..] llama-server started (waiting for model load...)"
 fi
 
-# --- Open WebUI (porta 3000) ---
+# --- Open WebUI (port 3000) ---
 if pgrep -f "[o]pen-webui serve" > /dev/null; then
-  echo "  [ok] Open WebUI gia' attivo"
+  echo "  [ok] Open WebUI already running"
 else
   DATA_DIR="$DATA_DIR" \
   ENABLE_WEB_SEARCH=true \
@@ -68,29 +68,29 @@ else
   CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30 \
   setsid "$VENV/bin/open-webui" serve --host 0.0.0.0 --port "$OWUI_PORT" \
     > "$LOG_DIR/openwebui.log" 2>&1 < /dev/null &
-  echo "  [..] Open WebUI avviato"
+  echo "  [..] Open WebUI started"
 fi
 
-echo "==> Attendo i servizi..."
+echo "==> Waiting for services..."
 
 for i in $(seq 1 90); do
   curl -s -m 2 -o /dev/null "http://localhost:$OWUI_PORT" && break
   sleep 2
 done
-curl -s -m 2 -o /dev/null "http://localhost:$OWUI_PORT" || { echo "ERRORE: Open WebUI non risponde (vedi logs/openwebui.log)"; exit 1; }
-echo "  [ok] Open WebUI pronto"
+curl -s -m 2 -o /dev/null "http://localhost:$OWUI_PORT" || { echo "ERROR: Open WebUI not responding (see logs/openwebui.log)"; exit 1; }
+echo "  [ok] Open WebUI ready"
 
 for i in $(seq 1 120); do
   curl -s -m 2 -o /dev/null "http://localhost:$LLAMA_PORT/health" && break
   sleep 2
 done
 if curl -s -m 2 -o /dev/null "http://localhost:$LLAMA_PORT/health"; then
-  echo "  [ok] llama-server pronto"
+  echo "  [ok] llama-server ready"
 else
-  echo "  [warn] llama-server non pronto (vedi logs/llama-server.log)"
+  echo "  [warn] llama-server not ready (see logs/llama-server.log)"
 fi
 
-echo "==> Configuro il modello con web search attivo (idempotente)..."
+echo "==> Configuring model with web search enabled (idempotent)..."
 
 TOKEN=$(curl -s -m 10 -X POST "http://localhost:$OWUI_PORT/api/v1/auths/signin" \
   -H "Content-Type: application/json" \
@@ -98,79 +98,79 @@ TOKEN=$(curl -s -m 10 -X POST "http://localhost:$OWUI_PORT/api/v1/auths/signin" 
   | python3 -c "import json,sys; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || true)
 
 if [ -z "$TOKEN" ]; then
-  echo "  [warn] login admin fallito - configura manualmente il web search in Open WebUI"
+  echo "  [warn] admin login failed - configure web search manually in Open WebUI"
 else
   AUTH="Authorization: Bearer $TOKEN"
 
-  # 1) collega llama.cpp (se non gia' presente)
+  # 1) connect llama.cpp (if not already present)
   if ! curl -s -m 10 "http://localhost:$OWUI_PORT/openai/config" -H "$AUTH" \
     | python3 -c "import json,sys; print('http://localhost:'+sys.argv[1]+'/v1' in json.load(sys.stdin).get('OPENAI_API_BASE_URLS',[]))" "$LLAMA_PORT" 2>/dev/null | grep -q True; then
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/openai/config/update" -H "$AUTH" \
       -H "Content-Type: application/json" \
       -d "{\"ENABLE_OPENAI_API\":true,\"OPENAI_API_BASE_URLS\":[\"http://localhost:$LLAMA_PORT/v1\"],\"OPENAI_API_KEYS\":[\"\"],\"OPENAI_API_CONFIGS\":{\"0\":{\"provider\":\"llama.cpp\",\"enable\":true,\"prefix_id\":null}}}" > /dev/null
-    echo "  [..] connessione llama.cpp aggiunta"
+    echo "  [..] llama.cpp connection added"
   else
-    echo "  [ok] connessione llama.cpp presente"
+    echo "  [ok] llama.cpp connection present"
   fi
 
-  # 2) crea il modello "qwen3-web" con web search di default (se assente)
+  # 2) create the "qwen3-web" model with web search by default (if missing)
   if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$CUSTOM_MODEL_ID" -H "$AUTH")" = "200" ]; then
-    echo "  [ok] modello $CUSTOM_MODEL_ID gia' configurato"
+    echo "  [ok] model $CUSTOM_MODEL_ID already configured"
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen3 8B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 8B con ricerca web attiva\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
-    echo "  [..] modello $CUSTOM_MODEL_ID creato"
+      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen3 8B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 8B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+    echo "  [..] model $CUSTOM_MODEL_ID created"
   fi
 
-  # 2b) crea i modelli di riserva "ornith-web" e "qwen-web" (se assenti)
-  #     richiedono che llama-server sia riavviato con il modello relativo
+  # 2b) create backup models "ornith-web" and "qwen-web" (if missing)
+  #     they require llama-server to be restarted with the related model
   ORNITH_MODEL_ID="ornith-web"
   ORNITH_BASE_MODEL="ornith-1.0-9b-Q4_K_M"
   if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$ORNITH_MODEL_ID" -H "$AUTH")" = "200" ]; then
-    echo "  [ok] modello $ORNITH_MODEL_ID gia' configurato"
+    echo "  [ok] model $ORNITH_MODEL_ID already configured"
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$ORNITH_MODEL_ID\",\"base_model_id\":\"$ORNITH_BASE_MODEL\",\"name\":\"Ornith 9B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Ornith 9B con ricerca web attiva (modello di riserva)\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
-    echo "  [..] modello $ORNITH_MODEL_ID creato"
+      -d "{\"id\":\"$ORNITH_MODEL_ID\",\"base_model_id\":\"$ORNITH_BASE_MODEL\",\"name\":\"Ornith 9B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Ornith 9B with web search enabled (backup model)\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+    echo "  [..] model $ORNITH_MODEL_ID created"
   fi
   QWEN_MODEL_ID="qwen-web"
   QWEN_BASE_MODEL="qwen2.5-7b-instruct-q4_k_m"
   if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$QWEN_MODEL_ID" -H "$AUTH")" = "200" ]; then
-    echo "  [ok] modello $QWEN_MODEL_ID gia' configurato"
+    echo "  [ok] model $QWEN_MODEL_ID already configured"
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$QWEN_MODEL_ID\",\"base_model_id\":\"$QWEN_BASE_MODEL\",\"name\":\"Qwen 7B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen 2.5 7B con ricerca web attiva\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
-    echo "  [..] modello $QWEN_MODEL_ID creato"
+      -d "{\"id\":\"$QWEN_MODEL_ID\",\"base_model_id\":\"$QWEN_BASE_MODEL\",\"name\":\"Qwen 7B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen 2.5 7B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+    echo "  [..] model $QWEN_MODEL_ID created"
   fi
 
-  # 2c) modelli Gemma con web search (se assenti)
+  # 2c) Gemma models with web search (if missing)
   create_web_model() {
     local id="$1" base="$2" name="$3" desc="$4"
     if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$id" -H "$AUTH")" = "200" ]; then
-      echo "  [ok] modello $id gia' configurato"
+      echo "  [ok] model $id already configured"
     else
       curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
         -H "Content-Type: application/json" \
         -d "{\"id\":\"$id\",\"base_model_id\":\"$base\",\"name\":\"$name\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"$desc\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
-      echo "  [..] modello $id creato"
+      echo "  [..] model $id created"
     fi
   }
-  create_web_model "gemma3-web" "gemma-3-1b-it-Q4_K_M" "Gemma 3 1B (Web)" "Gemma 3 1B con ricerca web attiva"
-  create_web_model "gemma2-web" "gemma-2-9b-it-Q4_K_M" "Gemma 2 9B (Web)" "Gemma 2 9B con ricerca web attiva"
-  create_web_model "deepseek-web" "DeepSeek-V2-Lite-Chat.IQ2_S" "DeepSeek V2 Lite (Web)" "DeepSeek V2 Lite MoE con ricerca web attiva"
+  create_web_model "gemma3-web" "gemma-3-1b-it-Q4_K_M" "Gemma 3 1B (Web)" "Gemma 3 1B with web search enabled"
+  create_web_model "gemma2-web" "gemma-2-9b-it-Q4_K_M" "Gemma 2 9B (Web)" "Gemma 2 9B with web search enabled"
+  create_web_model "deepseek-web" "DeepSeek-V2-Lite-Chat.IQ2_S" "DeepSeek V2 Lite (Web)" "DeepSeek V2 Lite MoE with web search enabled"
 
 
-  # 3) ricarica la cache dei modelli cosi' "Qwen3 8B (Web)" compare in UI
+  # 3) refresh the model cache so "Qwen3 8B (Web)" shows in the UI
   curl -s -m 15 "http://localhost:$OWUI_PORT/api/v1/models" -H "$AUTH" > /dev/null
 fi
 
-echo "==> Apro il browser..."
+echo "==> Opening browser..."
 URL="http://localhost:$OWUI_PORT"
 xdg-open "$URL" > /dev/null 2>&1 || sensible-browser "$URL" > /dev/null 2>&1 || true
 
 echo
-echo "Fatto. Scegli il modello \"Qwen3 8B (Web)\" nella chat."
-echo "Il web search e' attivo di default: il modello cerca da solo sul web."
+echo "Done. Pick the \"Qwen3 8B (Web)\" model in the chat."
+echo "Web search is enabled by default: the model searches the web on its own."

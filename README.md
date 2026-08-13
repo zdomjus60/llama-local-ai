@@ -1,25 +1,26 @@
-# Chat IA locale con web search: llama.cpp + Open WebUI + SearXNG
+# Local AI chat with web search: llama.cpp + Open WebUI + SearXNG
 
-Configurazione completa di un assistente AI privato sulla propria rete locale:
+Complete setup of a private AI assistant on your own local network:
 
-- **llama.cpp** compilato con supporto **GPU (Vulkan)** come motore di inferenza
-- **Open WebUI** come interfaccia web (chat, modelli, ricerca web)
-- **SearXNG** come meta-motore di ricerca privato per il web search
-- Modello principale: **Qwen3 8B Instruct** (quantizzato Q4_K_M)
-- Altri modelli configurabili con web search: Qwen2.5 7B, Ornith 9B,
+- **llama.cpp** compiled with **GPU (Vulkan)** support as the inference engine
+- **Open WebUI** as the web interface (chat, models, web search)
+- **SearXNG** as a private meta-search engine for web search
+- Main model: **Qwen3 8B Instruct** (Q4_K_M quantized)
+- Other models that can be configured with web search: Qwen2.5 7B, Ornith 9B,
   Gemma 3 1B, Gemma 2 9B, DeepSeek V2 Lite
 
-Tutto gira in locale, nessun dato esce dalla rete di casa.
+Everything runs locally. Web searches are proxied through your own SearXNG
+instance, so your queries are not sent directly to Google/Bing with your IP.
 
-## Architettura
+## Architecture
 
 ```
-                 browser locale o altro PC in LAN
+                 local browser or another PC on the LAN
                             |
                             v
                  +--------------------+
                  |  Open WebUI :3000  |
-                 |  (interfaccia chat)|
+                 |  (chat interface)  |
                  +--------------------+
                       |          |
            /v1 chat   |          | web search
@@ -27,151 +28,191 @@ Tutto gira in locale, nessun dato esce dalla rete di casa.
               +-----------+  +-----------+
               | llama.cpp |  | SearXNG   |
               | :8080     |  | :8888     |
-              | (GPU)     |  | (motori)  |
+              | (GPU)     |  | (engines) |
               +-----------+  +-----------+
 ```
 
-Il flusso della ricerca web: la domanda arriva a Open WebUI, che interroga
-SearXNG, prende i primi risultati, li inietta nella richiesta al modello e il
-modello risponde citando le fonti ([1], [2], ...).
+How web search works: your question reaches Open WebUI, which asks SearXNG,
+takes the top results, injects them into the request to the model, and the
+model answers citing its sources ([1], [2], ...).
 
-## Hardware e sistema
+## Hardware and system
 
-- CPU/GPU: AMD con GPU integrata **Radeon 680M** (Rembrandt), driver Vulkan **RADV**
-- RAM: 16 GB (condivisa tra CPU e GPU integrata)
-- SO: Linux (Debian)
-- Server raggiungibile in LAN all'indirizzo `192.168.1.XXX` (sostituire con
-  l'IP della propria macchina)
+- CPU/GPU: AMD with integrated **Radeon 680M** (Rembrandt), Vulkan **RADV** drivers
+- RAM: 16 GB (shared between CPU and integrated GPU)
+- OS: Linux (Debian)
+- Server reachable on the LAN at `192.168.1.XXX` (replace with your machine's IP)
 
-## 1. Compilare llama.cpp con GPU (Vulkan)
+## 1. Build llama.cpp with GPU (Vulkan)
 
-Per usare la GPU AMD serve il backend Vulkan. Non serve CUDA.
+To use an AMD GPU you need the Vulkan backend. CUDA is not required.
 
 ```bash
-# prerequisiti
+# prerequisites
 sudo apt install build-essential cmake git \
   libvulkan1 vulkan-tools mesa-vulkan-drivers \
   glslang-tools shaderc
 
-# clonare e compilare
+# clone and build
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 cmake -B build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release -j$(nproc)
 ```
 
-Verifica che la GPU venga riconosciuta:
+Verify the GPU is detected:
 
 ```bash
 ./build/bin/llama-bench -m models/llama-3.2-3b-instruct-q4_k_m.gguf -p 32 -n 16 -ngl 99 -r 1
 ```
 
-Deve comparire `AMD Radeon Graphics (RADV REMBRANDT)` e la riga del risultato
-deve riportare `Vulkan` come backend.
+You should see `AMD Radeon Graphics (RADV REMBRANDT)` and the result row must
+report `Vulkan` as the backend.
 
-## 2. Scaricare i modelli
+Note: this benchmark needs the Llama 3.2 3B file first. Download it with:
 
-I modelli vanno nella cartella `models/` di llama.cpp. Sul sito
-Hugging Face si trovano i file `.gguf`.
+```bash
+curl -L -C - -o models/llama-3.2-3b-instruct-q4_k_m.gguf \
+  https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+```
 
-Modello principale:
+## 2. Download the models
+
+Models go into the `models/` folder of llama.cpp. GGUF files are hosted on
+Hugging Face.
+
+Main model:
 
 ```bash
 curl -L -C - -o models/Qwen3-8B-Q4_K_M.gguf \
   https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf
 ```
 
-Altri modelli a disposizione (sostituiscono Qwen3, da caricare al posto suo):
+Other available models (to load in addition to Qwen3):
 
-| Modello | File | Dimensione | Uso |
+| Model | File | Size | Use |
 |---|---|---|---|
-| Qwen3 8B Instruct | `Qwen3-8B-Q4_K_M.gguf` | 4,7 GB | **principale** |
-| Qwen2.5 7B Instruct | `qwen2.5-7b-instruct-q4_k_m.gguf` | 4,4 GB | riserva |
-| Ornith 1.0 9B | `ornith-1.0-9b-Q4_K_M.gguf` | 5,3 GB | riserva |
-| Gemma 3 1B | `gemma-3-1b-it-Q4_K_M.gguf` | ~1 GB | risposta veloce, italiano |
-| Gemma 2 9B | `gemma-2-9b-it-Q4_K_M.gguf` | ~6 GB | risposta lunga, italiano |
-| DeepSeek V2 Lite MoE | `DeepSeek-V2-Lite-Chat.IQ2_S` | ~2,4 GB | riserva, MoE efficiente |
-| Llama 3.2 3B | `llama-3.2-3b-instruct-q4_k_m.gguf` | 1,9 GB | test veloci |
+| Qwen3 8B Instruct | `Qwen3-8B-Q4_K_M.gguf` | 4.7 GB | **main** |
+| Qwen2.5 7B Instruct | `qwen2.5-7b-instruct-q4_k_m.gguf` | 4.4 GB | backup |
+| Ornith 1.0 9B | `ornith-1.0-9b-Q4_K_M.gguf` | 5.3 GB | backup |
+| Gemma 3 1B | `gemma-3-1b-it-Q4_K_M.gguf` | ~1 GB | fast answers, Italian |
+| Gemma 2 9B | `gemma-2-9b-it-Q4_K_M.gguf` | ~6 GB | long answers, Italian |
+| DeepSeek V2 Lite MoE | `DeepSeek-V2-Lite-Chat.IQ2_S.gguf` | ~6 GB | backup, efficient MoE |
+| Llama 3.2 3B | `llama-3.2-3b-instruct-q4_k_m.gguf` | 1.9 GB | quick tests |
 
-I file GGUF si scaricano da Hugging Face (cerco "NOME-MODELLO GGUF").
-Per i test rapidi da terminale si puo' usare direttamente
+Download GGUF files from Hugging Face (search "MODEL-NAME GGUF"). For quick
+terminal tests you can run:
 `./build/bin/llama-cli -m models/<file>.gguf -ngl 99 -c 4096`.
 
-Nota: Qwen3 e' un modello "reasoning" (pensa prima di rispondere). Per risposte
-dirette e veloci va avviato con l'opzione `--reasoning off`.
+Note: Qwen3 is a "reasoning" model (it thinks before answering). For direct,
+fast answers run it with `--reasoning off`.
 
-Attenzione: un download interrotto produce un file GGUF troncato e
-inutilizzabile. Esempio: DeepSeek-R1-Distill-Qwen-7B scaricato a 370 MB invece
-di ~4 GB non funziona. Ricontrollare sempre la dimensione del file.
+Warning: an interrupted download produces a truncated, unusable GGUF. Always
+re-check the file size. Example: DeepSeek-R1-Distill-Qwen-7B downloaded at
+370 MB instead of ~4 GB does not work.
 
-## 3. Installare Open WebUI
+## 3. Install Open WebUI
 
-Open WebUI gira in un virtual environment Python (stesso venv puo' ospitare
-anche SearXNG).
+Open WebUI runs in a Python virtual environment (the same venv can also host
+SearXNG).
 
 ```bash
 python3 -m venv venv
 venv/bin/pip install --upgrade pip
 venv/bin/pip install open-webui
-venv/bin/open-webui --version   # verificare l'installazione
+venv/bin/open-webui --version   # verify the install
 ```
 
-Al primo avvio viene chiesto di creare l'account amministratore. I dati
-(chat, modelli configurati, utenti) stanno nella cartella dati:
+On first start you are asked to create the administrator account. Data (chat,
+configured models, users) lives in the data folder:
 
 ```bash
-# variabili usate al primo avvio (poi richieste dall'ambiente)
-export DATA_DIR=/home/<utente>/openwebui/data
+# variables used on first start (then required from the environment)
+export DATA_DIR=/home/<user>/openwebui/data
 export WEBUI_ADMIN_EMAIL=...
 export WEBUI_ADMIN_PASSWORD=...
 export WEBUI_ADMIN_NAME=...
 venv/bin/open-webui serve --host 0.0.0.0 --port 3000
 ```
 
-Le credenziali amministratore vanno salvate in un file `.env` fuori dal repo
-(vedi `.env.example`).
+If `WEBUI_ADMIN_*` variables are set, Open WebUI creates the admin account
+automatically on first start; otherwise it asks interactively.
 
-## 4. Installare e configurare SearXNG
+## 4. Install and configure SearXNG
 
-SearXNG interroga piu' motori di ricerca (Google, Bing, DuckDuckGo...) e
-restituisce risultati puliti. Installato con lo stesso venv.
+SearXNG queries several search engines (Google, Bing, DuckDuckGo, ...) and
+returns clean results. It is not installed as a pip package: it runs from a git
+clone, using the Python interpreter of the same venv.
 
 ```bash
-venv/bin/pip install searxng
 git clone https://github.com/searxng/searxng.git searxng
-# il file di config si genera/avvia cosi':
-SEARXNG_SETTINGS_PATH=$PWD/searxng/settings.yml \
+venv/bin/pip install -r searxng/requirements.txt
+```
+
+Create `searxng/settings.yml`. The minimal working configuration is:
+
+```yaml
+use_default_settings: true
+
+server:
+  secret_key: "REPLACE-WITH-A-RANDOM-STRING"
+  bind_address: "127.0.0.1"
+  port: 8888
+  limiter: false
+  public_instance: false
+
+search:
+  formats:
+    - html
+    - json
+```
+
+Two details are critical:
+
+- `server.port: 8888` and `server.bind_address: "127.0.0.1"`: only Open WebUI on
+  the same machine must reach it.
+- `search.formats` must include **`json`**: Open WebUI requests
+  `/search?format=json`, and without it the web search silently fails.
+
+Start SearXNG from inside the `searxng/` folder (the module is imported from
+the current directory):
+
+```bash
+cd searxng
+SEARXNG_SETTINGS_PATH=$PWD/settings.yml \
   venv/bin/python -m searx.webapp
 ```
 
-Nel file `settings.yml` la porta di default e' 8888 e il server ascolta solo su
-`127.0.0.1` (corretto: deve usarlo solo Open WebUI sulla stessa macchina).
-Cambiare `secret_key` prima dell'uso.
+Generate the `secret_key` with:
 
-## 5. Collegare Open WebUI a llama.cpp
-
-In Open WebUI: **Settings > Connection > OpenAI API** aggiungere il server:
-
-```
-URL base: http://localhost:8080/v1
-Chiave API: (vuota)
-Prefisso id: llama.cpp
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Oppure, in automatico, eseguendo `start_chat.sh` che fa questo passaggio via API.
+## 5. Connect Open WebUI to llama.cpp
 
-## 6. Attivare la ricerca web sul modello
+In Open WebUI: **Settings > Connection > OpenAI API**, add the server:
 
-Il trucco che fa funzionare il web search in questo setup:
+```
+Base URL: http://localhost:8080/v1
+API key: (empty)
+ID prefix: llama.cpp
+```
 
-1. Il modello di chat va creato in Open WebUI con **`function_calling` = `legacy`**
-   (cosi' la ricerca la fa Open WebUI e non il modello).
-2. Va dichiarata la capability **`web_search: true`** con la feature di default
-   `["web_search"]`: solo cosi' il toggle "Web Search" compare e resta attivo
-   nella chat.
+Or automatically, by running `start_chat.sh`, which does this step via API.
 
-Esempio di creazione via API (fatto in automatico da `start_chat.sh`, che crea
-un modello "Web" per ogni GGUF presente in `models/`):
+## 6. Enable web search on a model
+
+The trick that makes web search work in this setup:
+
+1. The chat model must be created in Open WebUI with **`function_calling` = `legacy`**
+   (so the search is done by Open WebUI, not by the model).
+2. The **`web_search: true`** capability with the default feature
+   `["web_search"]` must be declared: only then the "Web Search" toggle appears
+   and stays active in the chat.
+
+API creation example (done automatically by `start_chat.sh`, which creates a
+"Web" model for every GGUF found in `models/`):
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/models/create -H "Authorization: Bearer $TOKEN" \
@@ -187,13 +228,13 @@ curl -X POST http://localhost:3000/api/v1/models/create -H "Authorization: Beare
   }'
 ```
 
-Nota: `base_model_id` e' il **nome file** del GGUF senza cartella (la cartella
-`models/` non va inclusa: lo gestisce il router di llama-server).
+Note: `base_model_id` is the GGUF **file name without the folder** (do not
+include `models/`: the llama-server router handles it).
 
-I modelli "Web" che `start_chat.sh` configura automaticamente (uno per GGUF
-trovato):
+The "Web" models configured automatically by `start_chat.sh` (one per GGUF
+found):
 
-| id in Open WebUI | modello |
+| id in Open WebUI | model |
 |---|---|
 | `qwen3-web` | Qwen3 8B |
 | `qwen-web` | Qwen2.5 7B |
@@ -202,14 +243,14 @@ trovato):
 | `gemma2-web` | Gemma 2 9B |
 | `deepseek-web` | DeepSeek V2 Lite |
 
-Da quel momento basta selezionare il modello "Web" nella chat e la ricerca
-parte da sola quando serve: il modello cerca, legge i risultati e risponde
-citando le fonti. L'utente puo' disattivarla col toggle in chat.
+From then on, just select the "Web" model in the chat and the search starts by
+itself when needed: the model searches, reads the results and answers citing
+the sources. The user can turn it off with the toggle in the chat.
 
-### Compattazione automatica del contesto
+### Automatic context compaction
 
-Per chat lunghe, Open WebUI puo' compattare la cronologia quando supera una
-soglia di token:
+For long chats, Open WebUI can compact the history when it exceeds a token
+threshold:
 
 ```
 ENABLE_CONTEXT_COMPACTION=true
@@ -217,53 +258,75 @@ CONTEXT_COMPACTION_TOKEN_THRESHOLD=12000
 CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30
 ```
 
-## 7. Avvio dei servizi
+## 7. Start the services
 
-Il file `start_chat.sh` in questa repo avvia **tutti** i servizi
-(SearXNG, llama-server, Open WebUI), configura i modelli con web search e
-apre il browser.
+The `start_chat.sh` file in this repo starts **all** services (SearXNG,
+llama-server, Open WebUI), configures the models with web search and opens the
+browser.
 
-llama-server gira come **router multi-modello**: carica i modelli dalla
-cartella `models/` al volo e tiene in RAM un solo modello alla volta
-(`--models-max 1`,
-LRU). I parametri chiave del setup:
+llama-server runs as a **multi-model router**: it loads models from the
+`models/` folder on demand and keeps only one model in RAM at a time
+(`--models-max 1`, LRU). Key parameters:
 
 ```bash
 ./build/bin/llama-server \
-  --models-dir models \   # tutti i GGUF in models/ sono selezionabili da Open WebUI
-  --models-max 1 \        # un solo modello in RAM alla volta (LRU)
-  -ngl 99 \               # carica il 100% dei layer sulla GPU Vulkan
-  -c 16384 \              # contesto 16k token
-  -n 2048 \               # max 2048 token per risposta
-  -ctk q8_0 -ctv q8_0 \   # KV cache quantizzata (occorre ~1 GiB a 16k)
-  --reasoning off \       # disattiva il "thinking" di Qwen3
-  --host 0.0.0.0 \        # accessibile anche da altri PC in LAN
+  --models-dir models \   # all GGUF in models/ become selectable in Open WebUI
+  --models-max 1 \        # one model in RAM at a time (LRU)
+  -ngl 99 \               # load 100% of layers on the Vulkan GPU
+  -c 16384 \              # 16k token context
+  -n 2048 \               # max 2048 tokens per answer
+  -ctk q8_0 -ctv q8_0 \   # quantized KV cache (~1 GiB at 16k)
+  --reasoning off \       # disable Qwen3 "thinking"
+  --host 0.0.0.0 \        # reachable from other PCs on the LAN
   --port 8080
 ```
 
-KV cache: 32 layer di attenzione con dim 1024 => a 16384 token in q8_0 servono
-circa 1 GiB di RAM/VRAM, lo stesso che a 8192 token in f16. Il raddoppio del
-contesto non costa memoria.
+KV cache: 32 attention layers with dim 1024 => at 16384 tokens in q8_0 about
+1 GiB of RAM/VRAM is needed, the same as 8192 tokens in f16. Doubling the
+context costs no memory.
 
-## 8. Uso da locale e da un altro PC
+### About the paths in `start_chat.sh`
 
-- Sulla macchina server: `http://localhost:3000`
-- Da un altro PC in LAN: `http://<IP-del-server>:3000` (indirizzo IP del server)
-- Open WebUI ascolta gia' su `0.0.0.0:3000`, nessun firewall attivo necessario
+`start_chat.sh` must be placed **inside the llama.cpp folder** (it uses
+`./build/bin/llama-server`, `./venv`, `models/`). It assumes this layout:
 
-## 9. Risoluzione problemi
+| Path | Used for |
+|---|---|
+| `$HOME/Scrivania/owui.env` | admin credentials (see `.env.example`) |
+| `$HOME/Scrivania/searxng` | SearXNG git clone with `settings.yml` |
+| `$HOME/Scrivania/openwebui/data` | Open WebUI data (webui.db) |
 
-| Sintomo | Causa probabile | Soluzione |
+The `owui.env` file (outside the repo, never committed) must contain:
+
+```bash
+WEBUI_ADMIN_EMAIL=you@example.com
+WEBUI_ADMIN_PASSWORD=your-password
+WEBUI_ADMIN_NAME=YourName
+```
+
+The `/v1` connection and the "Web" models are created automatically via API on
+every run (idempotent).
+
+## 8. Use it locally or from another PC
+
+- On the server machine: `http://localhost:3000`
+- From another PC on the LAN: `http://<server-IP>:3000`
+- Open WebUI already listens on `0.0.0.0:3000`, no firewall needed
+
+## 9. Troubleshooting
+
+| Symptom | Probable cause | Solution |
 |---|---|---|
-| Errore `Connect call failed` verso 11434 | Open WebUI cerca un server Ollama | ignorabile, si usa llama.cpp |
-| Il modello non cita fonti / "non so" | web search non attivo | scegliere il modello "Web" e accendere il toggle |
-| Risposta troppo lenta | "thinking" di Qwen3 attivo | riavviare con `--reasoning off` |
-| Modello non caricabile | GGUF troncato | ricontrollare dimensione e riscaricare con `curl -C -` |
-| La UI non mostra il toggle web search | manca `capabilities.web_search` | ricreare il modello come in sezione 6 |
-| Un modello non compare in Open WebUI | GGUF assente da `models/` o router non riavviato | copiare il GGUF in `models/` e riavviare llama-server |
-| Vram piena / modello non entra | quantizzazione troppo alta o contesto enorme | usare Q4_K_M e `-c 16384`, KV in q8_0 |
+| `Connect call failed` to 11434 | Open WebUI looks for an Ollama server | ignore, llama.cpp is used |
+| Model does not cite sources / "I don't know" | web search not enabled | pick a "Web" model and turn the toggle on |
+| Answer too slow | Qwen3 "thinking" enabled | restart with `--reasoning off` |
+| Model cannot be loaded | truncated GGUF | check size and re-download with `curl -C -` |
+| UI does not show the web search toggle | missing `capabilities.web_search` | recreate the model as in section 6 |
+| A model does not appear in Open WebUI | GGUF missing from `models/` or router not restarted | copy the GGUF into `models/` and restart llama-server |
+| Web search always fails | `settings.yml` missing `formats: json` | add `- json` under `search.formats` and restart SearXNG |
+| VRAM full / model does not fit | quant too high or huge context | use Q4_K_M and `-c 16384`, KV in q8_0 |
 
-## Riferimenti
+## References
 
 - llama.cpp: https://github.com/ggml-org/llama.cpp
 - Open WebUI: https://github.com/open-webui/open-webui

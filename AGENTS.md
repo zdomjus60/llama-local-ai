@@ -1,95 +1,97 @@
-# AGENTS.md - memoria per la ripresa delle sessioni
+# AGENTS.md - session memory
 
-Setup di un'assistente AI locale (llama.cpp + Open WebUI + SearXNG) su laptop
-con AMD Radeon 680M (Vulkan/RADV), 16 GB RAM, Debian.
+Setup of a local AI assistant (llama.cpp + Open WebUI + SearXNG) on a laptop
+with AMD Radeon 680M (Vulkan/RADV), 16 GB RAM, Debian.
 
-## Stato raggiunto (ago 2026)
+## Status reached (Aug 2026)
 
-Tutto funzionante e verificato end-to-end:
-- llama.cpp compilato Release con Vulkan ON (commit 15586e2d7, 2026-08-06)
-- GPU riconosciuta: `AMD Radeon Graphics (RADV REMBRANDT)` (UMA)
-- Modello principale: Qwen3-8B-Q4_K_M.gguf (4,7 GB), thinking disattivato
-  via `--reasoning off`
-- llama-server come **router multi-modello**: `--models-dir models
-  --models-max 1` (un solo modello in RAM alla volta, LRU)
-- Open WebUI 0.11.0 con web search funzionante (modelli "*-web",
+Everything works and is verified end-to-end:
+- llama.cpp built Release with Vulkan ON (commit 15586e2d7, 2026-08-06)
+- GPU detected: `AMD Radeon Graphics (RADV REMBRANDT)` (UMA)
+- Main model: Qwen3-8B-Q4_K_M.gguf (4.7 GB), thinking disabled via
+  `--reasoning off`
+- llama-server as a **multi-model router**: `--models-dir models --models-max 1`
+  (one model in RAM at a time, LRU)
+- Open WebUI 0.11.0 with working web search ("*-web" models,
   `function_calling: legacy` + `capabilities.web_search: true`)
-- SearXNG su porta 8888, Open WebUI 3000, llama-server 8080
-- Accesso da LAN verificato: `http://<IP-del-server>:3000`
+- SearXNG on port 8888, Open WebUI 3000, llama-server 8080
+- LAN access verified: `http://<server-IP>:3000`
 
-## Percorsi (in questa macchina: `$HOME=/home/debian`)
+## Paths (on this machine: `$HOME=/home/debian`)
 
-| Cosa | Percorso |
+| What | Path |
 |---|---|
 | llama.cpp (repo + build) | `$HOME/Scrivania/llama.cpp` |
-| venv Python | `$HOME/Scrivania/llama.cpp/venv` |
-| modelli | `$HOME/Scrivania/llama.cpp/models/` |
-| log servizi | `$HOME/Scrivania/llama.cpp/logs/` |
-| script di avvio | `$HOME/Scrivania/llama.cpp/start_chat.sh` (tutto: servizi + config web search + browser) |
-| dati Open WebUI | `$HOME/Scrivania/openwebui/data` (webui.db) |
-| credenziali admin | `$HOME/Scrivania/owui.env` (NON committare; `.env.example` per il formato) |
+| Python venv | `$HOME/Scrivania/llama.cpp/venv` |
+| models | `$HOME/Scrivania/llama.cpp/models/` |
+| service logs | `$HOME/Scrivania/llama.cpp/logs/` |
+| start script | `$HOME/Scrivania/llama.cpp/start_chat.sh` (everything: services + web search config + browser) |
+| Open WebUI data | `$HOME/Scrivania/openwebui/data` (webui.db) |
+| admin credentials | `$HOME/Scrivania/owui.env` (DO NOT commit; `.env.example` shows the format) |
 | SearXNG | `$HOME/Scrivania/searxng`, settings in `settings.yml` |
-| documentazione repo | `$HOME/Scrivania/llama-setup` (questa) |
+| repo docs | `$HOME/Scrivania/llama-local-ai` (this repo) |
 
-## Comandi utili
+## Useful commands
 
 ```bash
-# avvio completo (tutti i servizi + browser)
+# full start (all services + browser)
 $HOME/Scrivania/llama.cpp/start_chat.sh
 
-# server llama daemonizzato (router multi-modello)
+# daemonized llama server (multi-model router)
 cd $HOME/Scrivania/llama.cpp && setsid ./build/bin/llama-server \
   --models-dir models --models-max 1 -ngl 99 -c 16384 -n 2048 -ctk q8_0 -ctv q8_0 \
   --reasoning off --host 0.0.0.0 --port 8080 > logs/llama-server.log 2>&1 < /dev/null &
 
-# stato servizi
+# service status
 curl -s -o /dev/null -w "llama %{http_code}\n" http://localhost:8080/health
 curl -s -o /dev/null -w "owui  %{http_code}\n" http://localhost:3000
 pgrep -f "searx.webapp"    # SearXNG
-systemctl --user status owui-compact.service   # Open WebUI (se avviato via systemd-run)
+systemctl --user status owui-compact.service   # Open WebUI (if started via systemd-run)
 ```
 
-## Configurazioni chiave
+## Key configuration
 
 - llama-server: `--models-dir models --models-max 1 -ngl 99 -c 16384 -n 2048 -ctk q8_0 -ctv q8_0 --reasoning off --host 0.0.0.0 --port 8080`
 - Open WebUI env: `DATA_DIR`, `ENABLE_WEB_SEARCH=true`, `WEB_SEARCH_ENGINE=searxng`,
   `SEARXNG_QUERY_URL=http://localhost:8888/search`, `ENABLE_CONTEXT_COMPACTION=true`,
   `CONTEXT_COMPACTION_TOKEN_THRESHOLD=12000`, `CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30`
-- Web search funzionante = modello in Open WebUI con:
+- Working web search = Open WebUI model with:
   `params.function_calling=legacy`, `meta.capabilities.web_search=true`,
   `meta.defaultFeatureIds=["web_search"]`
-- Qwen3 e' reasoning model: senza `--reasoning off` brucia i token in "thinking"
-  (si vede `reasoning_content` nella risposta)
+- Qwen3 is a reasoning model: without `--reasoning off` it burns tokens in
+  "thinking" (you see `reasoning_content` in the response)
+- SearXNG `settings.yml` must have `search.formats: [html, json]`, otherwise
+  Open WebUI web search silently fails
 
-## Insidie note (lezioni apprese)
+## Known pitfalls (lessons learned)
 
-1. **Il tool bash uccide i processi in background al timeout.** Per servizi
-   longevi usare `setsid ... & echo avviato` COME ULTIMO comando della chiamata
-   (niente `sleep`/`pgrep` dopo, altrimenti il kill del tool li abbatte).
-   Alternativa affidabile per Open WebUI: `systemd-run --user --unit=...`.
-2. **`pkill -f '[l]lama-server'` si uccide da solo**: il pattern matcha anche
-   la shell che lo esegue (il comando contiene la stringa "llama-server").
-   Usare `kill $(pgrep -f '[l]lama-server' | grep -v bash)` oppure niente kill
-   se il processo non c'e'.
-3. `--chat-template-kwargs '{"enable_thinking":false}'` e' DEPRECATO: usare
-   `--reasoning off` (avviso nel log altrimenti).
-4. `gguf-py` del repo legge male le metadata GGUF v3 (valori sballati): per
-   validare un modello bisogna caricarlo con llama-server/llama-bench.
-5. Download interrotti = GGUF troncato e inutilizzabile. Riprendere con
-   `curl -L -C -`. DeepSeek-R1-Distill-Qwen-7B a 370 MB e' rotto, non usarlo.
-6. `systemctl --user` richiede il manager systemd utente; il sistema host usa
-   `/bin/bash` (non zsh).
+1. **The bash tool kills background processes on timeout.** For long-lived
+   services use `setsid ... & echo started` AS THE LAST command of the call
+   (no `sleep`/`pgrep` afterwards, otherwise the tool kill takes them down).
+   Reliable alternative for Open WebUI: `systemd-run --user --unit=...`.
+2. **`pkill -f '[l]lama-server'` kills itself**: the pattern also matches the
+   shell running it (the command contains the string "llama-server").
+   Use `kill $(pgrep -f '[l]lama-server' | grep -v bash)` or no kill at all if
+   the process is not running.
+3. `--chat-template-kwargs '{"enable_thinking":false}'` is DEPRECATED: use
+   `--reasoning off` (warning in the log otherwise).
+4. The repo `gguf-py` reads GGUF v3 metadata badly (wrong values): to validate a
+   model you must load it with llama-server/llama-bench.
+5. Interrupted downloads = truncated, unusable GGUF. Resume with `curl -L -C -`.
+   DeepSeek-R1-Distill-Qwen-7B at 370 MB is broken, do not use it.
+6. `systemctl --user` requires the systemd user manager; the host shell is
+   `/bin/bash` (not zsh).
 
-## Porte e servizi
+## Ports and services
 
-| Porta | Servizio | Scope |
+| Port | Service | Scope |
 |---|---|---|
 | 8080 | llama-server | LAN (0.0.0.0) |
 | 3000 | Open WebUI | LAN (0.0.0.0) |
-| 8888 | SearXNG | solo localhost (127.0.0.1) |
-| 11434 | Ollama | non usato (errori di connessione ignorabili) |
+| 8888 | SearXNG | localhost only (127.0.0.1) |
+| 11434 | Ollama | not used (ignore connection errors) |
 
-## Prossimi passi possibili
+## Possible next steps
 
-- Eventuali altri modelli da aggiungere a `models/` (il router li espone da solo)
-- Backup di `webui.db` (chat e modelli configurati)
+- Add more models to `models/` (the router exposes them automatically)
+- Backup `webui.db` (chats and configured models)
