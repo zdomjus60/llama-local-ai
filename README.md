@@ -83,8 +83,10 @@ SearXNG. Always call it by full path
 (`$BASE_DIR/llama.cpp/venv/bin/...`). Never use `sudo pip` system-wide: the
 system Python is 3.13 and cannot install Open WebUI.
 
-`start_chat.sh` reads `$BASE_DIR` too (default: `$HOME/Scrivania`), so it
-always finds `owui.env`, `searxng/` and `openwebui/data` where you put them.
+`start_chat.sh` is the start-all script provided in this repo; you copy it
+into `$BASE_DIR/llama.cpp/` in install step 6. It reads `$BASE_DIR` too
+(default: `$HOME/Scrivania`), so it always finds `owui.env`, `searxng/` and
+`openwebui/data` where you put them.
 
 Each install step below states where you work. Follow them in order.
 
@@ -195,9 +197,10 @@ Notes:
   cannot be installed there. Use the explicit pyenv path above.
 - The venv is **mandatory**: do not install Open WebUI with system pip.
 
-Manual first start (normally `start_chat.sh` does this for you, with data in
-`$BASE_DIR/openwebui/data`). You are asked to create the administrator
-account, or it is created automatically from the `WEBUI_ADMIN_*` variables:
+Manual first start (optional: you normally do this in step 6 with the start
+script, which uses the same data folder `$BASE_DIR/openwebui/data`). You are
+asked to create the administrator account, or it is created automatically from
+the `WEBUI_ADMIN_*` variables:
 
 ```bash
 export DATA_DIR=$BASE_DIR/openwebui/data
