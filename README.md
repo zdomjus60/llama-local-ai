@@ -50,8 +50,8 @@ To use an AMD GPU you need the Vulkan backend. CUDA is not required.
 ```bash
 # prerequisites
 sudo apt install build-essential cmake git \
-  libvulkan1 vulkan-tools mesa-vulkan-drivers \
-  glslang-tools shaderc
+  libvulkan1 libvulkan-dev vulkan-tools mesa-vulkan-drivers \
+  glslang-tools glslc spirv-headers
 
 # clone and build
 git clone https://github.com/ggml-org/llama.cpp.git
