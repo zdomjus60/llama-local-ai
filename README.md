@@ -162,34 +162,34 @@ EOF
 
 ---
 
-### Step 7 - Create the admin credentials
+### Step 7 - Get the helper scripts and create the admin credentials
 
 Folder: **`$HOME/llama-ai/llama.cpp`** (from step 5).
 Venv: **not involved** (pure bash, nothing hardcoded).
 
 ```bash
 cd "$HOME/llama-ai/llama.cpp"
-curl -L -o setup_credentials.sh \
-  https://raw.githubusercontent.com/zdomjus60/llama-local-ai/main/setup_credentials.sh
-chmod +x setup_credentials.sh
+git clone https://github.com/zdomjus60/llama-local-ai.git
+cp llama-local-ai/setup_credentials.sh llama-local-ai/start_chat.sh .
+chmod +x setup_credentials.sh start_chat.sh
 ./setup_credentials.sh
 ```
 
 The script asks you for email, name and password and saves them in
 `$HOME/llama-ai/owui.env`. Nothing is hardcoded.
 
+> Note: replace the GitHub address above with the address of the repo where
+> you are reading this README. The two scripts come from that repo.
+
 ---
 
 ### Step 8 - Start everything
 
-Folder: **`$HOME/llama-ai/llama.cpp`** (from step 5).
+Folder: **`$HOME/llama-ai/llama.cpp`** (from step 7).
 Venv: **not involved** — the script finds it by itself.
 
 ```bash
 cd "$HOME/llama-ai/llama.cpp"
-curl -L -o start_chat.sh \
-  https://raw.githubusercontent.com/zdomjus60/llama-local-ai/main/start_chat.sh
-chmod +x start_chat.sh
 ./start_chat.sh
 ```
 
