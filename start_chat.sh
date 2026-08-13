@@ -1,6 +1,6 @@
 #!/bin/bash
 # Start llama-server + SearXNG + Open WebUI and open the browser
-# with the Qwen3 4B chat (web search enabled via SearXNG).
+# with the Qwen 2.5 1.5B chat (web search enabled via SearXNG).
 
 set -euo pipefail
 
