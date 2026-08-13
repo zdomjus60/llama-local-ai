@@ -164,19 +164,19 @@ EOF
 
 ### Step 7 - Create the admin credentials
 
-Folder: **any** (the file is created at the right path).
-Venv: **not involved**.
+Folder: **`$HOME/llama-ai/llama.cpp`** (from step 5).
+Venv: **not involved** (pure bash, nothing hardcoded).
 
 ```bash
-mkdir -p "$HOME/llama-ai"
-cat > "$HOME/llama-ai/owui.env" <<EOF
-WEBUI_ADMIN_EMAIL=you@example.com
-WEBUI_ADMIN_PASSWORD=change-this-password
-WEBUI_ADMIN_NAME=Admin
-EOF
+cd "$HOME/llama-ai/llama.cpp"
+curl -L -o setup_credentials.sh \
+  https://raw.githubusercontent.com/zdomjus60/llama-local-ai/main/setup_credentials.sh
+chmod +x setup_credentials.sh
+./setup_credentials.sh
 ```
 
-Replace the email and password with your own.
+The script asks you for email, name and password and saves them in
+`$HOME/llama-ai/owui.env`. Nothing is hardcoded.
 
 ---
 

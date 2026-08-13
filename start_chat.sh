@@ -20,7 +20,15 @@ LLAMA_PORT=8080
 mkdir -p "$LOG_DIR"
 cd "$DIR"
 
-[ -f "$ENV_FILE" ] || { echo "Missing $ENV_FILE"; exit 1; }
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Credentials not found ($ENV_FILE)."
+  if [ -f "$DIR/setup_credentials.sh" ]; then
+    "$DIR/setup_credentials.sh"
+  else
+    echo "Run setup_credentials.sh first (step 7 of the README)."
+    exit 1
+  fi
+fi
 set -a
 . "$ENV_FILE"
 set +a
