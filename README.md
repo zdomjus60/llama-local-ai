@@ -56,6 +56,18 @@ terminal and reuse it for every command below:
 export BASE_DIR=$HOME/Scrivania    # example; Scrivania = Italian "Desktop"
 ```
 
+**Do not lose `$BASE_DIR`.** The variable exists only in the terminal where you
+ran the export: opening a new terminal clears it, and `cd "$BASE_DIR/llama.cpp"`
+silently becomes `cd /llama.cpp`. To keep it available in every terminal, add
+the export to your `~/.bashrc` once (adjust the path):
+
+```bash
+echo 'export BASE_DIR=$HOME/Scrivania' >> ~/.bashrc
+```
+
+After that, open a new terminal (or `source ~/.bashrc`) and `$BASE_DIR` is
+always set. You can check it anytime with `echo $BASE_DIR`.
+
 It can be any path you like (`$HOME/llama-ai`, `$HOME/Desktop`, ...). Two
 folders, with a fixed rule:
 
