@@ -43,6 +43,37 @@ model answers citing its sources ([1], [2], ...).
 - OS: Linux (Debian)
 - Server reachable on the LAN at `192.168.1.XXX` (replace with your machine's IP)
 
+## Directory layout
+
+Rule of thumb: **llama.cpp, the build, the venv and the models live inside the
+`llama.cpp/` folder; SearXNG, Open WebUI data and the credentials live in
+`$HOME/Scrivania/`** (`Scrivania` is the Italian "Desktop"; `start_chat.sh`
+looks for the latter in that exact folder and fails if they are missing).
+
+```
+$HOME/Scrivania/
+├── owui.env              # admin credentials (never committed, see .env.example)
+├── llama.cpp/
+│   ├── build/            # compiled llama.cpp binaries (llama-server, ...)
+│   ├── models/           # GGUF model files
+│   ├── venv/             # Python virtual environment (Open WebUI + SearXNG)
+│   ├── logs/             # service logs
+│   └── start_chat.sh     # start-all script (copy from this repo)
+├── searxng/              # SearXNG git clone + settings.yml
+└── openwebui/data/       # Open WebUI data (webui.db)
+```
+
+Sections 1-3 run **inside** `llama.cpp/`; section 4 runs **outside** it, in
+`$HOME/Scrivania/`. This is the only "gotcha": do not clone SearXNG inside
+`llama.cpp/`.
+
+**One venv for everything (yes, use the venv).** There is a single virtual
+environment at `llama.cpp/venv`, created with Python 3.12 in section 3. Both
+Open WebUI and SearXNG run from it. Always call it by full path
+(`$HOME/Scrivania/llama.cpp/venv/bin/...`) and never `sudo pip` system-wide:
+the system Python is 3.13, which cannot install Open WebUI, and mixing the two
+breaks the setup.
+
 ## 1. Build llama.cpp with GPU (Vulkan)
 
 To use an AMD GPU you need the Vulkan backend. CUDA is not required.
@@ -113,7 +144,10 @@ re-check the file size. Example: DeepSeek-R1-Distill-Qwen-7B downloaded at
 
 ## 3. Install Open WebUI
 
-Open WebUI runs in a Python virtual environment (the same venv can also host
+Run this section **inside the `llama.cpp/` folder** (you are still there from
+section 1): the venv is created here as `./venv` and reused by everything else.
+
+Open WebUI runs in a Python virtual environment (the same venv also hosts
 SearXNG).
 
 **Debian 13 ships only Python 3.13, but Open WebUI requires Python 3.11/3.12.**
@@ -138,14 +172,16 @@ venv/bin/python3 -m pip show open-webui | grep ^Version   # verify the install
 ```
 
 Note: `python3 -m venv venv` would use the system Python 3.13 and Open WebUI
-cannot be installed there. Use the explicit pyenv path above.
+cannot be installed there. Use the explicit pyenv path above. The venv is
+mandatory: do not install Open WebUI with system pip.
 
 On first start you are asked to create the administrator account. Data (chat,
-configured models, users) lives in the data folder:
+configured models, users) lives in the data folder (`start_chat.sh` uses
+`$HOME/Scrivania/openwebui/data`):
 
 ```bash
 # variables used on first start (then required from the environment)
-export DATA_DIR=/home/<user>/openwebui/data
+export DATA_DIR=$HOME/Scrivania/openwebui/data
 export WEBUI_ADMIN_EMAIL=...
 export WEBUI_ADMIN_PASSWORD=...
 export WEBUI_ADMIN_NAME=...
@@ -159,14 +195,19 @@ automatically on first start; otherwise it asks interactively.
 
 SearXNG queries several search engines (Google, Bing, DuckDuckGo, ...) and
 returns clean results. It is not installed as a pip package: it runs from a git
-clone, using the Python interpreter of the same venv.
+clone, using the Python interpreter of the **same venv** (no second venv, no
+system pip). **Unlike llama.cpp, SearXNG does NOT live inside `llama.cpp/`:**
+clone it into `$HOME/Scrivania/searxng`, because `start_chat.sh` looks for it
+there.
 
 ```bash
-git clone https://github.com/searxng/searxng.git searxng
-venv/bin/pip install -r searxng/requirements.txt
+# run this from ANY directory (paths are absolute)
+git clone https://github.com/searxng/searxng.git "$HOME/Scrivania/searxng"
+$HOME/Scrivania/llama.cpp/venv/bin/pip install -r "$HOME/Scrivania/searxng/requirements.txt"
 ```
 
-Create `searxng/settings.yml`. The minimal working configuration is:
+Create `$HOME/Scrivania/searxng/settings.yml`. The minimal working
+configuration is:
 
 ```yaml
 use_default_settings: true
@@ -195,12 +236,12 @@ Start SearXNG from inside the `searxng/` folder (the module is imported from
 the current directory):
 
 ```bash
-cd searxng
+cd "$HOME/Scrivania/searxng"
 SEARXNG_SETTINGS_PATH=$PWD/settings.yml \
-  venv/bin/python3 -m searx.webapp
+  "$HOME/Scrivania/llama.cpp/venv/bin/python3" -m searx.webapp
 ```
 
-Generate the `secret_key` with:
+Generate the `secret_key` (use the system python3, it is only a one-liner):
 
 ```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"
