@@ -129,7 +129,7 @@ else
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen 1.5B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen 2.5 1.5B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen 1.5B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"system\":\"Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}} and the local time is {{CURRENT_TIME}} (server local time). When asked about the current date, time or timezone, answer using these values.\",\"description\":\"Qwen 2.5 1.5B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
     echo "  [..] model $CUSTOM_MODEL_ID created"
   fi
 
@@ -164,7 +164,7 @@ else
     else
       curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
         -H "Content-Type: application/json" \
-        -d "{\"id\":\"$id\",\"base_model_id\":\"$base\",\"name\":\"$name\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"$desc\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+        -d "{\"id\":\"$id\",\"base_model_id\":\"$base\",\"name\":\"$name\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"system\":\"Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}} and the local time is {{CURRENT_TIME}} (server local time). When asked about the current date, time or timezone, answer using these values.\",\"description\":\"$desc\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
       echo "  [..] model $id created"
     fi
   }
