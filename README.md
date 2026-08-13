@@ -43,48 +43,54 @@ model answers citing its sources ([1], [2], ...).
 - OS: Linux (Debian)
 - Server reachable on the LAN at `192.168.1.XXX` (replace with your machine's IP)
 
-## Directory layout
+## Where everything lives
 
-Rule of thumb: **llama.cpp, the build, the venv and the models live inside the
-`llama.cpp/` folder; SearXNG, Open WebUI data and the credentials live in
-`$HOME/Scrivania/`** (`Scrivania` is the Italian "Desktop"; `start_chat.sh`
-looks for the latter in that exact folder and fails if they are missing).
+All the work happens in `$HOME/Scrivania/` (`Scrivania` is the Italian
+"Desktop"). Two folders, with a fixed rule:
+
+- **Inside `llama.cpp/`** -> llama.cpp source, `build/`, `models/`, `venv/`,
+  `logs/`, `start_chat.sh`
+- **Outside it, in `$HOME/Scrivania/`** -> `searxng/`, `openwebui/data/`,
+  `owui.env`
 
 ```
 $HOME/Scrivania/
 ├── owui.env              # admin credentials (never committed, see .env.example)
-├── llama.cpp/
+├── llama.cpp/            # everything created in install steps 1-3
 │   ├── build/            # compiled llama.cpp binaries (llama-server, ...)
 │   ├── models/           # GGUF model files
 │   ├── venv/             # Python virtual environment (Open WebUI + SearXNG)
 │   ├── logs/             # service logs
 │   └── start_chat.sh     # start-all script (copy from this repo)
-├── searxng/              # SearXNG git clone + settings.yml
+├── searxng/              # created in step 4
 └── openwebui/data/       # Open WebUI data (webui.db)
 ```
 
-Sections 1-3 run **inside** `llama.cpp/`; section 4 runs **outside** it, in
-`$HOME/Scrivania/`. This is the only "gotcha": do not clone SearXNG inside
-`llama.cpp/`.
+**One venv for everything.** There is a single virtual environment at
+`llama.cpp/venv`, created in step 3 and shared by Open WebUI and SearXNG.
+Always call it by full path (`$HOME/Scrivania/llama.cpp/venv/bin/...`). Never
+use `sudo pip` system-wide: the system Python is 3.13 and cannot install Open
+WebUI.
 
-**One venv for everything (yes, use the venv).** There is a single virtual
-environment at `llama.cpp/venv`, created with Python 3.12 in section 3. Both
-Open WebUI and SearXNG run from it. Always call it by full path
-(`$HOME/Scrivania/llama.cpp/venv/bin/...`) and never `sudo pip` system-wide:
-the system Python is 3.13, which cannot install Open WebUI, and mixing the two
-breaks the setup.
+Each install step below states where you work. Follow them in order.
 
-## 1. Build llama.cpp with GPU (Vulkan)
+---
+
+## Install step 1 - Build llama.cpp with Vulkan
+
+**Work in:** `$HOME/Scrivania/` (you do not need to create the folder, the
+clone does it).
 
 To use an AMD GPU you need the Vulkan backend. CUDA is not required.
 
 ```bash
-# prerequisites
+# prerequisites (system-wide, run anywhere)
 sudo apt install build-essential cmake git \
   libvulkan1 libvulkan-dev vulkan-tools mesa-vulkan-drivers \
   glslang-tools glslc spirv-headers
 
 # clone and build
+cd "$HOME/Scrivania"
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 cmake -B build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
@@ -107,10 +113,10 @@ curl -L -C - -o models/llama-3.2-3b-instruct-q4_k_m.gguf \
   https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf
 ```
 
-## 2. Download the models
+## Install step 2 - Download the models
 
-Models go into the `models/` folder of llama.cpp. GGUF files are hosted on
-Hugging Face.
+**Work in:** `$HOME/Scrivania/llama.cpp/` (from step 1). Models go into the
+`models/` folder.
 
 Main model:
 
@@ -135,20 +141,18 @@ Download GGUF files from Hugging Face (search "MODEL-NAME GGUF"). For quick
 terminal tests you can run:
 `./build/bin/llama-cli -m models/<file>.gguf -ngl 99 -c 4096`.
 
-Note: Qwen3 is a "reasoning" model (it thinks before answering). For direct,
-fast answers run it with `--reasoning off`.
+Notes:
 
-Warning: an interrupted download produces a truncated, unusable GGUF. Always
-re-check the file size. Example: DeepSeek-R1-Distill-Qwen-7B downloaded at
-370 MB instead of ~4 GB does not work.
+- Qwen3 is a "reasoning" model (it thinks before answering). For direct, fast
+  answers run it with `--reasoning off`.
+- An interrupted download produces a truncated, unusable GGUF. Always re-check
+  the file size. Example: DeepSeek-R1-Distill-Qwen-7B downloaded at 370 MB
+  instead of ~4 GB does not work.
 
-## 3. Install Open WebUI
+## Install step 3 - Create the venv and install Open WebUI
 
-Run this section **inside the `llama.cpp/` folder** (you are still there from
-section 1): the venv is created here as `./venv` and reused by everything else.
-
-Open WebUI runs in a Python virtual environment (the same venv also hosts
-SearXNG).
+**Work in:** `$HOME/Scrivania/llama.cpp/` (from step 2). The venv is created
+here as `./venv` and reused by everything else.
 
 **Debian 13 ships only Python 3.13, but Open WebUI requires Python 3.11/3.12.**
 On a stock Debian 13 `pip install open-webui` fails with
@@ -156,7 +160,7 @@ On a stock Debian 13 `pip install open-webui` fails with
 because every release requires `<3.13`. Install Python 3.12 with pyenv first:
 
 ```bash
-# Python 3.12 build dependencies
+# Python 3.12 build dependencies (system-wide, run anywhere)
 sudo apt install build-essential libssl-dev zlib1g-dev libbz2-dev \
   libreadline-dev libsqlite3-dev libffi-dev liblzma-dev
 
@@ -171,37 +175,37 @@ venv/bin/pip install open-webui
 venv/bin/python3 -m pip show open-webui | grep ^Version   # verify the install
 ```
 
-Note: `python3 -m venv venv` would use the system Python 3.13 and Open WebUI
-cannot be installed there. Use the explicit pyenv path above. The venv is
-mandatory: do not install Open WebUI with system pip.
+Notes:
 
-On first start you are asked to create the administrator account. Data (chat,
-configured models, users) lives in the data folder (`start_chat.sh` uses
-`$HOME/Scrivania/openwebui/data`):
+- `python3 -m venv venv` would use the system Python 3.13 and Open WebUI
+  cannot be installed there. Use the explicit pyenv path above.
+- The venv is **mandatory**: do not install Open WebUI with system pip.
+
+Manual first start (normally `start_chat.sh` does this for you, with data in
+`$HOME/Scrivania/openwebui/data`). You are asked to create the administrator
+account, or it is created automatically from the `WEBUI_ADMIN_*` variables:
 
 ```bash
-# variables used on first start (then required from the environment)
 export DATA_DIR=$HOME/Scrivania/openwebui/data
-export WEBUI_ADMIN_EMAIL=...
-export WEBUI_ADMIN_PASSWORD=...
-export WEBUI_ADMIN_NAME=...
+export WEBUI_ADMIN_EMAIL=you@example.com
+export WEBUI_ADMIN_PASSWORD=your-password
+export WEBUI_ADMIN_NAME=YourName
 venv/bin/open-webui serve --host 0.0.0.0 --port 3000
 ```
 
-If `WEBUI_ADMIN_*` variables are set, Open WebUI creates the admin account
-automatically on first start; otherwise it asks interactively.
+## Install step 4 - Install and configure SearXNG
 
-## 4. Install and configure SearXNG
+**Work in:** `$HOME/Scrivania/` (this is the one step OUTSIDE `llama.cpp/`;
+do not clone SearXNG inside it).
 
 SearXNG queries several search engines (Google, Bing, DuckDuckGo, ...) and
 returns clean results. It is not installed as a pip package: it runs from a git
-clone, using the Python interpreter of the **same venv** (no second venv, no
-system pip). **Unlike llama.cpp, SearXNG does NOT live inside `llama.cpp/`:**
-clone it into `$HOME/Scrivania/searxng`, because `start_chat.sh` looks for it
-there.
+clone, using the Python interpreter of the **same venv** from step 3 (no
+second venv, no system pip). `start_chat.sh` expects it at
+`$HOME/Scrivania/searxng`:
 
 ```bash
-# run this from ANY directory (paths are absolute)
+# run from ANY directory (paths are absolute)
 git clone https://github.com/searxng/searxng.git "$HOME/Scrivania/searxng"
 $HOME/Scrivania/llama.cpp/venv/bin/pip install -r "$HOME/Scrivania/searxng/requirements.txt"
 ```
@@ -232,8 +236,15 @@ Two details are critical:
 - `search.formats` must include **`json`**: Open WebUI requests
   `/search?format=json`, and without it the web search silently fails.
 
-Start SearXNG from inside the `searxng/` folder (the module is imported from
-the current directory):
+Generate the `secret_key` (use the system python3, it is only a one-liner):
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Start SearXNG manually, from inside the `searxng/` folder (the module is
+imported from the current directory). Normally `start_chat.sh` does this for
+you:
 
 ```bash
 cd "$HOME/Scrivania/searxng"
@@ -241,86 +252,35 @@ SEARXNG_SETTINGS_PATH=$PWD/settings.yml \
   "$HOME/Scrivania/llama.cpp/venv/bin/python3" -m searx.webapp
 ```
 
-Generate the `secret_key` (use the system python3, it is only a one-liner):
+## Install step 5 - Create the admin credentials
+
+**File:** `$HOME/Scrivania/owui.env` (outside the repo, never committed).
+`start_chat.sh` fails if this file is missing. Copy `.env.example` and fill it
+in:
 
 ```bash
-python3 -c "import secrets; print(secrets.token_hex(32))"
+WEBUI_ADMIN_EMAIL=you@example.com
+WEBUI_ADMIN_PASSWORD=your-password
+WEBUI_ADMIN_NAME=YourName
 ```
 
-## 5. Connect Open WebUI to llama.cpp
+## Install step 6 - Start everything
 
-In Open WebUI: **Settings > Connection > OpenAI API**, add the server:
-
-```
-Base URL: http://localhost:8080/v1
-API key: (empty)
-ID prefix: llama.cpp
-```
-
-Or automatically, by running `start_chat.sh`, which does this step via API.
-
-## 6. Enable web search on a model
-
-The trick that makes web search work in this setup:
-
-1. The chat model must be created in Open WebUI with **`function_calling` = `legacy`**
-   (so the search is done by Open WebUI, not by the model).
-2. The **`web_search: true`** capability with the default feature
-   `["web_search"]` must be declared: only then the "Web Search" toggle appears
-   and stays active in the chat.
-
-API creation example (done automatically by `start_chat.sh`, which creates a
-"Web" model for every GGUF found in `models/`):
+**Work in:** `$HOME/Scrivania/llama.cpp/` (the script uses `./build`,
+`./venv`, `models/`). Copy `start_chat.sh` from this repo into that folder and
+run it:
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/models/create -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '{
-    "id": "qwen3-web",
-    "base_model_id": "Qwen3-8B-Q4_K_M",
-    "name": "Qwen3 8B (Web)",
-    "params": {"function_calling": "legacy"},
-    "meta": {
-      "defaultFeatureIds": ["web_search"],
-      "capabilities": {"web_search": true}
-    }
-  }'
+cd "$HOME/Scrivania/llama.cpp"
+./start_chat.sh
 ```
 
-Note: `base_model_id` is the GGUF **file name without the folder** (do not
-include `models/`: the llama-server router handles it).
+The script starts SearXNG, llama-server and Open WebUI, waits until they are
+ready, then automatically:
 
-The "Web" models configured automatically by `start_chat.sh` (one per GGUF
-found):
-
-| id in Open WebUI | model |
-|---|---|
-| `qwen3-web` | Qwen3 8B |
-| `qwen-web` | Qwen2.5 7B |
-| `ornith-web` | Ornith 1.0 9B |
-| `gemma3-web` | Gemma 3 1B |
-| `gemma2-web` | Gemma 2 9B |
-| `deepseek-web` | DeepSeek V2 Lite |
-
-From then on, just select the "Web" model in the chat and the search starts by
-itself when needed: the model searches, reads the results and answers citing
-the sources. The user can turn it off with the toggle in the chat.
-
-### Automatic context compaction
-
-For long chats, Open WebUI can compact the history when it exceeds a token
-threshold:
-
-```
-ENABLE_CONTEXT_COMPACTION=true
-CONTEXT_COMPACTION_TOKEN_THRESHOLD=12000
-CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30
-```
-
-## 7. Start the services
-
-The `start_chat.sh` file in this repo starts **all** services (SearXNG,
-llama-server, Open WebUI), configures the models with web search and opens the
-browser.
+1. connects Open WebUI to llama.cpp (`http://localhost:8080/v1`);
+2. creates the "Web" models (one per GGUF in `models/`, web search enabled);
+3. opens the browser.
 
 llama-server runs as a **multi-model router**: it loads models from the
 `models/` folder on demand and keeps only one model in RAM at a time
@@ -343,35 +303,73 @@ KV cache: 32 attention layers with dim 1024 => at 16384 tokens in q8_0 about
 1 GiB of RAM/VRAM is needed, the same as 8192 tokens in f16. Doubling the
 context costs no memory.
 
-### About the paths in `start_chat.sh`
-
-`start_chat.sh` must be placed **inside the llama.cpp folder** (it uses
-`./build/bin/llama-server`, `./venv`, `models/`). It assumes this layout:
-
-| Path | Used for |
-|---|---|
-| `$HOME/Scrivania/owui.env` | admin credentials (see `.env.example`) |
-| `$HOME/Scrivania/searxng` | SearXNG git clone with `settings.yml` |
-| `$HOME/Scrivania/openwebui/data` | Open WebUI data (webui.db) |
-
-The `owui.env` file (outside the repo, never committed) must contain:
-
-```bash
-WEBUI_ADMIN_EMAIL=you@example.com
-WEBUI_ADMIN_PASSWORD=your-password
-WEBUI_ADMIN_NAME=YourName
-```
-
-The `/v1` connection and the "Web" models are created automatically via API on
-every run (idempotent).
-
-## 8. Use it locally or from another PC
+## Use it locally or from another PC
 
 - On the server machine: `http://localhost:3000`
 - From another PC on the LAN: `http://<server-IP>:3000`
 - Open WebUI already listens on `0.0.0.0:3000`, no firewall needed
 
-## 9. Troubleshooting
+Pick a "Web" model in the chat (e.g. `Qwen3 8B (Web)`): web search is enabled
+by default, the model searches on its own and cites the sources. The user can
+turn it off with the toggle in the chat.
+
+## How the "Web" models work (reference)
+
+The trick that makes web search work in this setup:
+
+1. The chat model must be created in Open WebUI with **`function_calling` = `legacy`**
+   (so the search is done by Open WebUI, not by the model).
+2. The **`web_search: true`** capability with the default feature
+   `["web_search"]` must be declared: only then the "Web Search" toggle appears
+   and stays active in the chat.
+
+`start_chat.sh` does this automatically for every GGUF found in `models/`. The
+models created are:
+
+| id in Open WebUI | model |
+|---|---|
+| `qwen3-web` | Qwen3 8B |
+| `qwen-web` | Qwen2.5 7B |
+| `ornith-web` | Ornith 1.0 9B |
+| `gemma3-web` | Gemma 3 1B |
+| `gemma2-web` | Gemma 2 9B |
+| `deepseek-web` | DeepSeek V2 Lite |
+
+Manual API creation example (what `start_chat.sh` does):
+
+```bash
+curl -X POST http://localhost:3000/api/v1/models/create -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{
+    "id": "qwen3-web",
+    "base_model_id": "Qwen3-8B-Q4_K_M",
+    "name": "Qwen3 8B (Web)",
+    "params": {"function_calling": "legacy"},
+    "meta": {
+      "defaultFeatureIds": ["web_search"],
+      "capabilities": {"web_search": true}
+    }
+  }'
+```
+
+Note: `base_model_id` is the GGUF **file name without the folder** (do not
+include `models/`: the llama-server router handles it).
+
+To connect Open WebUI to llama.cpp manually instead: **Settings > Connection >
+OpenAI API**, add `http://localhost:8080/v1`, empty API key, ID prefix
+`llama.cpp`.
+
+### Automatic context compaction
+
+For long chats, Open WebUI can compact the history when it exceeds a token
+threshold:
+
+```
+ENABLE_CONTEXT_COMPACTION=true
+CONTEXT_COMPACTION_TOKEN_THRESHOLD=12000
+CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30
+```
+
+## Troubleshooting
 
 | Symptom | Probable cause | Solution |
 |---|---|---|
@@ -379,10 +377,10 @@ every run (idempotent).
 | Model does not cite sources / "I don't know" | web search not enabled | pick a "Web" model and turn the toggle on |
 | Answer too slow | Qwen3 "thinking" enabled | restart with `--reasoning off` |
 | Model cannot be loaded | truncated GGUF | check size and re-download with `curl -C -` |
-| UI does not show the web search toggle | missing `capabilities.web_search` | recreate the model as in section 6 |
+| UI does not show the web search toggle | missing `capabilities.web_search` | recreate the model (see "Web" models reference) |
 | A model does not appear in Open WebUI | GGUF missing from `models/` or router not restarted | copy the GGUF into `models/` and restart llama-server |
 | Web search always fails | `settings.yml` missing `formats: json` | add `- json` under `search.formats` and restart SearXNG |
-| `pip install open-webui` fails: "No matching distribution found" | system Python is 3.13 (Debian 13 default), Open WebUI needs `<3.13` | install Python 3.12 with pyenv and recreate the venv (section 3) |
+| `pip install open-webui` fails: "No matching distribution found" | system Python is 3.13 (Debian 13 default), Open WebUI needs `<3.13` | install Python 3.12 with pyenv and recreate the venv (install step 3) |
 | VRAM full / model does not fit | quant too high or huge context | use Q4_K_M and `-c 16384`, KV in q8_0 |
 
 ## References
