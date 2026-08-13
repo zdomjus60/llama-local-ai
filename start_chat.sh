@@ -11,7 +11,7 @@ LOG_DIR="$DIR/logs"
 VENV="$DIR/venv"
 DATA_DIR="$HOME/Scrivania/openwebui/data"
 
-BASE_MODEL="models/Qwen3-8B-Q4_K_M.gguf"
+MODEL_ALIAS="Qwen3-8B-Q4_K_M"
 CUSTOM_MODEL_ID="qwen3-web"
 OWUI_PORT=3000
 LLAMA_PORT=8080
@@ -35,12 +35,15 @@ else
   echo "  [..] SearXNG avviato (http://localhost:8888)"
 fi
 
-# --- llama-server (modello Qwen3 8B, porta 8080) ---
+# --- llama-server (router multi-modello, porta 8080) ---
+# NB: --models-max 1: al cambio modello (Open WebUI) il precedente viene
+# scaricato (LRU), cosi' in RAM resta un solo modello
 if curl -s -m 2 -o /dev/null "http://localhost:$LLAMA_PORT/health"; then
   echo "  [ok] llama-server gia' attivo"
 else
   setsid ./build/bin/llama-server \
-    -m "$BASE_MODEL" \
+    --models-dir models \
+    --models-max 1 \
     -ngl 99 \
     -c 16384 \
     -n 2048 \
@@ -116,14 +119,14 @@ else
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$BASE_MODEL\",\"name\":\"Qwen3 8B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 8B con ricerca web attiva\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen3 8B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 8B con ricerca web attiva\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
     echo "  [..] modello $CUSTOM_MODEL_ID creato"
   fi
 
   # 2b) crea i modelli di riserva "ornith-web" e "qwen-web" (se assenti)
   #     richiedono che llama-server sia riavviato con il modello relativo
   ORNITH_MODEL_ID="ornith-web"
-  ORNITH_BASE_MODEL="models/ornith-1.0-9b-Q4_K_M.gguf"
+  ORNITH_BASE_MODEL="ornith-1.0-9b-Q4_K_M"
   if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$ORNITH_MODEL_ID" -H "$AUTH")" = "200" ]; then
     echo "  [ok] modello $ORNITH_MODEL_ID gia' configurato"
   else
@@ -133,7 +136,7 @@ else
     echo "  [..] modello $ORNITH_MODEL_ID creato"
   fi
   QWEN_MODEL_ID="qwen-web"
-  QWEN_BASE_MODEL="models/qwen2.5-7b-instruct-q4_k_m.gguf"
+  QWEN_BASE_MODEL="qwen2.5-7b-instruct-q4_k_m"
   if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$QWEN_MODEL_ID" -H "$AUTH")" = "200" ]; then
     echo "  [ok] modello $QWEN_MODEL_ID gia' configurato"
   else
@@ -142,6 +145,23 @@ else
       -d "{\"id\":\"$QWEN_MODEL_ID\",\"base_model_id\":\"$QWEN_BASE_MODEL\",\"name\":\"Qwen 7B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen 2.5 7B con ricerca web attiva\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
     echo "  [..] modello $QWEN_MODEL_ID creato"
   fi
+
+  # 2c) modelli Gemma con web search (se assenti)
+  create_web_model() {
+    local id="$1" base="$2" name="$3" desc="$4"
+    if [ "$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://localhost:$OWUI_PORT/api/v1/models/model?id=$id" -H "$AUTH")" = "200" ]; then
+      echo "  [ok] modello $id gia' configurato"
+    else
+      curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
+        -H "Content-Type: application/json" \
+        -d "{\"id\":\"$id\",\"base_model_id\":\"$base\",\"name\":\"$name\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"$desc\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+      echo "  [..] modello $id creato"
+    fi
+  }
+  create_web_model "gemma3-web" "gemma-3-1b-it-Q4_K_M" "Gemma 3 1B (Web)" "Gemma 3 1B con ricerca web attiva"
+  create_web_model "gemma2-web" "gemma-2-9b-it-Q4_K_M" "Gemma 2 9B (Web)" "Gemma 2 9B con ricerca web attiva"
+  create_web_model "deepseek-web" "DeepSeek-V2-Lite-Chat.IQ2_S" "DeepSeek V2 Lite (Web)" "DeepSeek V2 Lite MoE con ricerca web attiva"
+
 
   # 3) ricarica la cache dei modelli cosi' "Qwen3 8B (Web)" compare in UI
   curl -s -m 15 "http://localhost:$OWUI_PORT/api/v1/models" -H "$AUTH" > /dev/null

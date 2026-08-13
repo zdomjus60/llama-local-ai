@@ -6,6 +6,8 @@ Configurazione completa di un assistente AI privato sulla propria rete locale:
 - **Open WebUI** come interfaccia web (chat, modelli, ricerca web)
 - **SearXNG** come meta-motore di ricerca privato per il web search
 - Modello principale: **Qwen3 8B Instruct** (quantizzato Q4_K_M)
+- Altri modelli configurabili con web search: Qwen2.5 7B, Ornith 9B,
+  Gemma 3 1B, Gemma 2 9B, DeepSeek V2 Lite
 
 Tutto gira in locale, nessun dato esce dalla rete di casa.
 
@@ -86,7 +88,14 @@ Altri modelli a disposizione (sostituiscono Qwen3, da caricare al posto suo):
 | Qwen3 8B Instruct | `Qwen3-8B-Q4_K_M.gguf` | 4,7 GB | **principale** |
 | Qwen2.5 7B Instruct | `qwen2.5-7b-instruct-q4_k_m.gguf` | 4,4 GB | riserva |
 | Ornith 1.0 9B | `ornith-1.0-9b-Q4_K_M.gguf` | 5,3 GB | riserva |
+| Gemma 3 1B | `gemma-3-1b-it-Q4_K_M.gguf` | ~1 GB | risposta veloce, italiano |
+| Gemma 2 9B | `gemma-2-9b-it-Q4_K_M.gguf` | ~6 GB | risposta lunga, italiano |
+| DeepSeek V2 Lite MoE | `DeepSeek-V2-Lite-Chat.IQ2_S` | ~2,4 GB | riserva, MoE efficiente |
 | Llama 3.2 3B | `llama-3.2-3b-instruct-q4_k_m.gguf` | 1,9 GB | test veloci |
+
+I file GGUF si scaricano da Hugging Face (cerco "NOME-MODELLO GGUF").
+Per i test rapidi da terminale si puo' usare direttamente
+`./build/bin/llama-cli -m models/<file>.gguf -ngl 99 -c 4096`.
 
 Nota: Qwen3 e' un modello "reasoning" (pensa prima di rispondere). Per risposte
 dirette e veloci va avviato con l'opzione `--reasoning off`.
@@ -161,13 +170,14 @@ Il trucco che fa funzionare il web search in questo setup:
    `["web_search"]`: solo cosi' il toggle "Web Search" compare e resta attivo
    nella chat.
 
-Esempio di creazione via API (fatto in automatico da `start_chat.sh`):
+Esempio di creazione via API (fatto in automatico da `start_chat.sh`, che crea
+un modello "Web" per ogni GGUF presente in `models/`):
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/models/create -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" -d '{
     "id": "qwen3-web",
-    "base_model_id": "models/Qwen3-8B-Q4_K_M.gguf",
+    "base_model_id": "Qwen3-8B-Q4_K_M",
     "name": "Qwen3 8B (Web)",
     "params": {"function_calling": "legacy"},
     "meta": {
@@ -177,7 +187,22 @@ curl -X POST http://localhost:3000/api/v1/models/create -H "Authorization: Beare
   }'
 ```
 
-Da quel momento basta selezionare "Qwen3 8B (Web)" nella chat e la ricerca
+Nota: `base_model_id` e' il **nome file** del GGUF senza cartella (la cartella
+`models/` non va inclusa: lo gestisce il router di llama-server).
+
+I modelli "Web" che `start_chat.sh` configura automaticamente (uno per GGUF
+trovato):
+
+| id in Open WebUI | modello |
+|---|---|
+| `qwen3-web` | Qwen3 8B |
+| `qwen-web` | Qwen2.5 7B |
+| `ornith-web` | Ornith 1.0 9B |
+| `gemma3-web` | Gemma 3 1B |
+| `gemma2-web` | Gemma 2 9B |
+| `deepseek-web` | DeepSeek V2 Lite |
+
+Da quel momento basta selezionare il modello "Web" nella chat e la ricerca
 parte da sola quando serve: il modello cerca, legge i risultati e risponde
 citando le fonti. L'utente puo' disattivarla col toggle in chat.
 
@@ -194,24 +219,25 @@ CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30
 
 ## 7. Avvio dei servizi
 
-I file `start_chat.sh`, `start_web.sh`, `start_all.sh` in questa repo:
+Il file `start_chat.sh` in questa repo avvia **tutti** i servizi
+(SearXNG, llama-server, Open WebUI), configura i modelli con web search e
+apre il browser.
 
-- `start_chat.sh` - avvia **tutti** i servizi (SearXNG, llama-server, Open WebUI),
-  configura il modello con web search e apre il browser
-- `start_web.sh` - avvia solo llama-server (in foreground)
-- `start_all.sh` - avvia SearXNG + Open WebUI e llama-server (foreground)
-
-llama-server gira con questi parametri (chiavi di tutto il setup):
+llama-server gira come **router multi-modello**: carica i modelli dalla
+cartella `models/` al volo e tiene in RAM un solo modello alla volta
+(`--models-max 1`,
+LRU). I parametri chiave del setup:
 
 ```bash
 ./build/bin/llama-server \
-  -m models/Qwen3-8B-Q4_K_M.gguf \
-  -ngl 99 \            # carica il 100% dei layer sulla GPU Vulkan
-  -c 16384 \           # contesto 16k token
-  -n 2048 \            # max 2048 token per risposta
-  -ctk q8_0 -ctv q8_0  # KV cache quantizzata (occorre ~1 GiB a 16k)
-  --reasoning off      # disattiva il "thinking" di Qwen3
-  --host 0.0.0.0 \     # accessibile anche da altri PC in LAN
+  --models-dir models \   # tutti i GGUF in models/ sono selezionabili da Open WebUI
+  --models-max 1 \        # un solo modello in RAM alla volta (LRU)
+  -ngl 99 \               # carica il 100% dei layer sulla GPU Vulkan
+  -c 16384 \              # contesto 16k token
+  -n 2048 \               # max 2048 token per risposta
+  -ctk q8_0 -ctv q8_0 \   # KV cache quantizzata (occorre ~1 GiB a 16k)
+  --reasoning off \       # disattiva il "thinking" di Qwen3
+  --host 0.0.0.0 \        # accessibile anche da altri PC in LAN
   --port 8080
 ```
 
@@ -234,6 +260,7 @@ contesto non costa memoria.
 | Risposta troppo lenta | "thinking" di Qwen3 attivo | riavviare con `--reasoning off` |
 | Modello non caricabile | GGUF troncato | ricontrollare dimensione e riscaricare con `curl -C -` |
 | La UI non mostra il toggle web search | manca `capabilities.web_search` | ricreare il modello come in sezione 6 |
+| Un modello non compare in Open WebUI | GGUF assente da `models/` o router non riavviato | copiare il GGUF in `models/` e riavviare llama-server |
 | Vram piena / modello non entra | quantizzazione troppo alta o contesto enorme | usare Q4_K_M e `-c 16384`, KV in q8_0 |
 
 ## Riferimenti
