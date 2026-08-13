@@ -116,12 +116,29 @@ re-check the file size. Example: DeepSeek-R1-Distill-Qwen-7B downloaded at
 Open WebUI runs in a Python virtual environment (the same venv can also host
 SearXNG).
 
+**Debian 13 ships only Python 3.13, but Open WebUI requires Python 3.11/3.12.**
+On a stock Debian 13 `pip install open-webui` fails with
+`ERROR: Could not find a version that satisfies the requirement open-webui`,
+because every release requires `<3.13`. Install Python 3.12 with pyenv first:
+
 ```bash
-python3 -m venv venv
+# Python 3.12 build dependencies
+sudo apt install build-essential libssl-dev zlib1g-dev libbz2-dev \
+  libreadline-dev libsqlite3-dev libffi-dev liblzma-dev
+
+# install pyenv and Python 3.12 (takes a few minutes, source build)
+curl -fsSL https://pyenv.run | bash
+~/.pyenv/bin/pyenv install 3.12.13
+
+# create the venv with Python 3.12 (NOT the system python3 = 3.13)
+~/.pyenv/versions/3.12.13/bin/python -m venv venv
 venv/bin/pip install --upgrade pip
 venv/bin/pip install open-webui
-venv/bin/open-webui --version   # verify the install
+venv/bin/python -m pip show open-webui | grep ^Version   # verify the install
 ```
+
+Note: `python3 -m venv venv` would use the system Python 3.13 and Open WebUI
+cannot be installed there. Use the explicit pyenv path above.
 
 On first start you are asked to create the administrator account. Data (chat,
 configured models, users) lives in the data folder:
@@ -324,6 +341,7 @@ every run (idempotent).
 | UI does not show the web search toggle | missing `capabilities.web_search` | recreate the model as in section 6 |
 | A model does not appear in Open WebUI | GGUF missing from `models/` or router not restarted | copy the GGUF into `models/` and restart llama-server |
 | Web search always fails | `settings.yml` missing `formats: json` | add `- json` under `search.formats` and restart SearXNG |
+| `pip install open-webui` fails: "No matching distribution found" | system Python is 3.13 (Debian 13 default), Open WebUI needs `<3.13` | install Python 3.12 with pyenv and recreate the venv (section 3) |
 | VRAM full / model does not fit | quant too high or huge context | use Q4_K_M and `-c 16384`, KV in q8_0 |
 
 ## References

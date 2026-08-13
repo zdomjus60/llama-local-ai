@@ -65,7 +65,12 @@ systemctl --user status owui-compact.service   # Open WebUI (if started via syst
 
 ## Known pitfalls (lessons learned)
 
-1. **The bash tool kills background processes on timeout.** For long-lived
+1. **Open WebUI requires Python <3.13.** Debian 13 ships only Python 3.13, so
+   `pip install open-webui` on the system python fails with "No matching
+   distribution found". Must use Python 3.12 via pyenv:
+   `~/.pyenv/versions/3.12.13/bin/python -m venv venv`. (`shaderc` is also not
+   a Debian package: the binary is `glslc`.)
+2. **The bash tool kills background processes on timeout.** For long-lived
    services use `setsid ... & echo started` AS THE LAST command of the call
    (no `sleep`/`pgrep` afterwards, otherwise the tool kill takes them down).
    Reliable alternative for Open WebUI: `systemd-run --user --unit=...`.
