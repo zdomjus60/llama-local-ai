@@ -7,15 +7,15 @@ Private AI assistant on your local network: **llama.cpp** (GPU/Vulkan) +
 
 - A GPU with Vulkan support (AMD, Intel, NVIDIA all work)
 - Linux (Debian 13 tested)
-- Enough RAM for the model (Qwen3 4B needs ~4 GB)
+- Enough RAM for the model (Qwen 1.5B needs ~2 GB)
 
 ## A note on the model size
 
-The default model is **Qwen3 4B** (about 2.5 GB). It is fast enough even on an
+The default model is **Qwen 2.5 1.5B** (about 1.1 GB). It is fast even on an
 old or integrated GPU. If your machine has a strong GPU (e.g. an NVIDIA RTX or
-an AMD Radeon from 2022+) you can use the bigger **Qwen3 8B** instead: just
-replace `Qwen3-4B-Q4_K_M` with `Qwen3-8B-Q4_K_M` in step 4 and in
-`start_chat.sh` (line 15).
+an AMD Radeon from 2022+) you can use a bigger model instead: just change the
+filename in step 4 and the `MODEL_ALIAS` in `start_chat.sh` (line 15). For
+example `Qwen3-4B-Q4_K_M.gguf` (2.5 GB) or `Qwen3-8B-Q4_K_M.gguf` (4.7 GB).
 
 ## The venv rule (read this first)
 
@@ -93,11 +93,11 @@ Venv: **not involved**.
 
 ```bash
 mkdir -p models
-curl -L -C - -o models/Qwen3-4B-Q4_K_M.gguf \
-  https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf
+curl -L -C - -o models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
 ```
 
-Wait until the download finishes (about 2.5 GB).
+Wait until the download finishes (about 1.1 GB).
 
 ---
 
@@ -211,7 +211,7 @@ search and opens your browser.
 - On this PC: `http://localhost:3000`
 - From another PC on the LAN: `http://<server-IP>:3000`
 
-In the chat, pick the model **Qwen3 4B (Web)**.
+In the chat, pick the model **Qwen 1.5B (Web)**.
 
 ## Troubleshooting
 
@@ -230,4 +230,4 @@ In the chat, pick the model **Qwen3 4B (Web)**.
 - llama.cpp: https://github.com/ggml-org/llama.cpp
 - Open WebUI: https://github.com/open-webui/open-webui
 - SearXNG: https://github.com/searxng/searxng
-- Qwen3-4B GGUF: https://huggingface.co/Qwen/Qwen3-4B-GGUF
+- Qwen2.5-1.5B GGUF: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF

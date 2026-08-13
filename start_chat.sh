@@ -12,7 +12,7 @@ LOG_DIR="$DIR/logs"
 VENV="$DIR/venv"
 DATA_DIR="$BASE_DIR/openwebui/data"
 
-MODEL_ALIAS="Qwen3-4B-Q4_K_M"
+MODEL_ALIAS="qwen2.5-1.5b-instruct-q4_k_m"
 CUSTOM_MODEL_ID="qwen3-web"
 OWUI_PORT=3000
 LLAMA_PORT=8080
@@ -129,7 +129,7 @@ else
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen3 4B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 4B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen 1.5B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen 2.5 1.5B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
     echo "  [..] model $CUSTOM_MODEL_ID created"
   fi
 
@@ -173,7 +173,7 @@ else
   create_web_model "deepseek-web" "DeepSeek-V2-Lite-Chat.IQ2_S" "DeepSeek V2 Lite (Web)" "DeepSeek V2 Lite MoE with web search enabled"
 
 
-  # 3) refresh the model cache so "Qwen3 4B (Web)" shows in the UI
+  # 3) refresh the model cache so "Qwen 1.5B (Web)" shows in the UI
   curl -s -m 15 "http://localhost:$OWUI_PORT/api/v1/models" -H "$AUTH" > /dev/null
 fi
 
@@ -182,5 +182,5 @@ URL="http://localhost:$OWUI_PORT"
 xdg-open "$URL" > /dev/null 2>&1 || sensible-browser "$URL" > /dev/null 2>&1 || true
 
 echo
-echo "Done. Pick the \"Qwen3 4B (Web)\" model in the chat."
+echo "Done. Pick the \"Qwen 1.5B (Web)\" model in the chat."
 echo "Web search is enabled by default: the model searches the web on its own."
