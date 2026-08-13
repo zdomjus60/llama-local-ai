@@ -7,11 +7,14 @@ AMD Radeon RX 580 / RADV).
 ## Status reached (Aug 2026)
 
 - llama.cpp built Release with Vulkan ON
-- Default model: **Qwen3-4B-Q4_K_M** (2.5 GB) - chosen because the RX 580
-  (Polaris 2017) has very slow FP16: Qwen3-8B ran prompt processing at
-  ~4.6 tok/s (minutes per question). 8B still available for stronger GPUs
-  (see README note).
+- Default model: **qwen2.5-1.5b-instruct-q4_k_m** (1.1 GB). Measured on this
+  machine (RX 580 Polaris): prompt processing ~735-830 tok/s, generation
+  ~21-41 tok/s, web-search question answered correctly in ~2-6 s.
+  Qwen3-4B was ~12-19 tok/s prompt (minutes per web question) - too slow.
 - llama-server as a multi-model router: `--models-dir models --models-max 1`
+- **Reliable service launch**: `systemd-run --user --unit=llama-server --collect
+  --working-directory=$PWD ./build/bin/llama-server ...` - survives the bash
+  tool (setsid/nohup get killed by the tool on timeout).
 - Open WebUI 0.11.0 (venv), SearXNG on 8888, llama-server 8080
 - **IMPORTANT on this machine**: a separate system-wide stack already exists
   (Open WebUI on :3000 as `uvicorn open_webui.main:app`, SearXNG under
@@ -27,7 +30,7 @@ README uses fixed base folder `$HOME/llama-ai`.
 |---|---|
 | llama.cpp (repo + build) | `$HOME/llama-ai/llama.cpp` |
 | Python venv | `$HOME/llama-ai/llama.cpp/venv` |
-| models | `$HOME/llama-ai/llama.cpp/models/` |
+| models | `$HOME/llama-ai/llama.cpp/models/` (qwen2.5-1.5b-instruct-q4_k_m.gguf active; Qwen3-4B present; Qwen3-8B renamed .gguf.off) |
 | service logs | `$HOME/llama-ai/llama.cpp/logs/` |
 | admin credentials | `$HOME/llama-ai/owui.env` (created interactively by `setup_credentials.sh`) |
 | SearXNG | `$HOME/llama-ai/searxng`, settings in `settings.yml` |
