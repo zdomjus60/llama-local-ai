@@ -31,7 +31,7 @@ if pgrep -f "[s]earx.webapp" > /dev/null; then
   echo "  [ok] SearXNG already running"
 else
   SEARXNG_SETTINGS_PATH="$SEARXNG_DIR/settings.yml" \
-    setsid "$VENV/bin/python" -m searx.webapp > "$LOG_DIR/searxng.log" 2>&1 < /dev/null &
+    setsid "$VENV/bin/python3" -m searx.webapp > "$LOG_DIR/searxng.log" 2>&1 < /dev/null &
   echo "  [..] SearXNG started (http://localhost:8888)"
 fi
 

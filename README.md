@@ -131,10 +131,10 @@ curl -fsSL https://pyenv.run | bash
 ~/.pyenv/bin/pyenv install 3.12.13
 
 # create the venv with Python 3.12 (NOT the system python3 = 3.13)
-~/.pyenv/versions/3.12.13/bin/python -m venv venv
+~/.pyenv/versions/3.12.13/bin/python3 -m venv venv
 venv/bin/pip install --upgrade pip
 venv/bin/pip install open-webui
-venv/bin/python -m pip show open-webui | grep ^Version   # verify the install
+venv/bin/python3 -m pip show open-webui | grep ^Version   # verify the install
 ```
 
 Note: `python3 -m venv venv` would use the system Python 3.13 and Open WebUI
@@ -197,7 +197,7 @@ the current directory):
 ```bash
 cd searxng
 SEARXNG_SETTINGS_PATH=$PWD/settings.yml \
-  venv/bin/python -m searx.webapp
+  venv/bin/python3 -m searx.webapp
 ```
 
 Generate the `secret_key` with:
