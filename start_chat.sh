@@ -12,7 +12,7 @@ LOG_DIR="$DIR/logs"
 VENV="$DIR/venv"
 DATA_DIR="$BASE_DIR/openwebui/data"
 
-MODEL_ALIAS="Qwen3-8B-Q4_K_M"
+MODEL_ALIAS="Qwen3-4B-Q4_K_M"
 CUSTOM_MODEL_ID="qwen3-web"
 OWUI_PORT=3000
 LLAMA_PORT=8080
@@ -40,7 +40,8 @@ if pgrep -f "[s]earx.webapp" > /dev/null; then
   echo "  [ok] SearXNG already running"
 else
   SEARXNG_SETTINGS_PATH="$SEARXNG_DIR/settings.yml" \
-    setsid "$VENV/bin/python3" -m searx.webapp > "$LOG_DIR/searxng.log" 2>&1 < /dev/null &
+  PYTHONPATH="$SEARXNG_DIR" \
+  setsid "$VENV/bin/python3" -m searx.webapp > "$LOG_DIR/searxng.log" 2>&1 < /dev/null &
   echo "  [..] SearXNG started (http://localhost:8888)"
 fi
 
@@ -128,7 +129,7 @@ else
   else
     curl -s -m 15 -X POST "http://localhost:$OWUI_PORT/api/v1/models/create" -H "$AUTH" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen3 8B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 8B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
+      -d "{\"id\":\"$CUSTOM_MODEL_ID\",\"base_model_id\":\"$MODEL_ALIAS\",\"name\":\"Qwen3 4B (Web)\",\"params\":{\"function_calling\":\"legacy\"},\"meta\":{\"defaultFeatureIds\":[\"web_search\"],\"capabilities\":{\"web_search\":true},\"description\":\"Qwen3 4B with web search enabled\"},\"access_grants\":[],\"is_active\":true}" > /dev/null
     echo "  [..] model $CUSTOM_MODEL_ID created"
   fi
 

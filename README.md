@@ -7,7 +7,15 @@ Private AI assistant on your local network: **llama.cpp** (GPU/Vulkan) +
 
 - A GPU with Vulkan support (AMD, Intel, NVIDIA all work)
 - Linux (Debian 13 tested)
-- Enough RAM for the model (Qwen3 8B needs ~7 GB)
+- Enough RAM for the model (Qwen3 4B needs ~4 GB)
+
+## A note on the model size
+
+The default model is **Qwen3 4B** (about 2.5 GB). It is fast enough even on an
+old or integrated GPU. If your machine has a strong GPU (e.g. an NVIDIA RTX or
+an AMD Radeon from 2022+) you can use the bigger **Qwen3 8B** instead: just
+replace `Qwen3-4B-Q4_K_M` with `Qwen3-8B-Q4_K_M` in step 4 and in
+`start_chat.sh` (line 15).
 
 ## The venv rule (read this first)
 
@@ -85,11 +93,11 @@ Venv: **not involved**.
 
 ```bash
 mkdir -p models
-curl -L -C - -o models/Qwen3-8B-Q4_K_M.gguf \
-  https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf
+curl -L -C - -o models/Qwen3-4B-Q4_K_M.gguf \
+  https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf
 ```
 
-Wait until the download finishes (about 4.7 GB).
+Wait until the download finishes (about 2.5 GB).
 
 ---
 
@@ -203,7 +211,7 @@ search and opens your browser.
 - On this PC: `http://localhost:3000`
 - From another PC on the LAN: `http://<server-IP>:3000`
 
-In the chat, pick the model **Qwen3 8B (Web)**.
+In the chat, pick the model **Qwen3 4B (Web)**.
 
 ## Troubleshooting
 
