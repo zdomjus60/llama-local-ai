@@ -5,7 +5,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BASE_DIR="${BASE_DIR:-$HOME/Scrivania}"
+BASE_DIR="${BASE_DIR:-$HOME/llama-ai}"
 ENV_FILE="$BASE_DIR/owui.env"
 SEARXNG_DIR="$BASE_DIR/searxng"
 LOG_DIR="$DIR/logs"

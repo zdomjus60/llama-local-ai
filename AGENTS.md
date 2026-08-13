@@ -19,6 +19,10 @@ Everything works and is verified end-to-end:
 
 ## Paths (on this machine: `$HOME=/home/debian`)
 
+Note: the README's default base folder is `$HOME/llama-ai`; THIS machine keeps
+the old layout and must run `start_chat.sh` with
+`BASE_DIR=$HOME/Scrivania`.
+
 | What | Path |
 |---|---|
 | llama.cpp (repo + build) | `$HOME/Scrivania/llama.cpp` |

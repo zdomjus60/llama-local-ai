@@ -49,35 +49,19 @@ model answers citing its sources ([1], [2], ...).
 
 ## Where everything lives
 
-All the work happens in a single base folder, `$BASE_DIR`. Set it once in your
-terminal and reuse it for every command below:
+Everything runs inside a single **fixed folder, `$HOME/llama-ai`**. You never
+need to set a variable or edit `~/.bashrc`: the commands below use this exact
+path, and the start script looks in the same place automatically.
 
-```bash
-export BASE_DIR=$HOME/Scrivania    # example; Scrivania = Italian "Desktop"
-```
+Two folders, with a fixed rule:
 
-**Do not lose `$BASE_DIR`.** The variable exists only in the terminal where you
-ran the export: opening a new terminal clears it, and `cd "$BASE_DIR/llama.cpp"`
-silently becomes `cd /llama.cpp`. To keep it available in every terminal, add
-the export to your `~/.bashrc` once (adjust the path):
-
-```bash
-echo 'export BASE_DIR=$HOME/Scrivania' >> ~/.bashrc
-```
-
-After that, open a new terminal (or `source ~/.bashrc`) and `$BASE_DIR` is
-always set. You can check it anytime with `echo $BASE_DIR`.
-
-It can be any path you like (`$HOME/llama-ai`, `$HOME/Desktop`, ...). Two
-folders, with a fixed rule:
-
-- **Inside `$BASE_DIR/llama.cpp/`** -> llama.cpp source, `build/`, `models/`,
-  `venv/`, `logs/`, `start_chat.sh`
-- **Outside it, directly in `$BASE_DIR/`** -> `searxng/`, `openwebui/data/`,
-  `owui.env`
+- **Inside `$HOME/llama-ai/llama.cpp/`** -> llama.cpp source, `build/`,
+  `models/`, `venv/`, `logs/`, `start_chat.sh`
+- **Outside it, directly in `$HOME/llama-ai/`** -> `searxng/`,
+  `openwebui/data/`, `owui.env`
 
 ```
-$BASE_DIR/
+$HOME/llama-ai/
 ├── owui.env              # admin credentials (never committed, see .env.example)
 ├── llama.cpp/            # everything created in install steps 1-3
 │   ├── build/            # compiled llama.cpp binaries (llama-server, ...)
@@ -90,15 +74,14 @@ $BASE_DIR/
 ```
 
 **One venv for everything.** There is a single virtual environment at
-`$BASE_DIR/llama.cpp/venv`, created in step 3 and shared by Open WebUI and
-SearXNG. Always call it by full path
-(`$BASE_DIR/llama.cpp/venv/bin/...`). Never use `sudo pip` system-wide: the
-system Python is 3.13 and cannot install Open WebUI.
+`$HOME/llama-ai/llama.cpp/venv`, created in step 3 and shared by Open WebUI
+and SearXNG. Never use `sudo pip` system-wide: the system Python is 3.13 and
+cannot install Open WebUI.
 
 `start_chat.sh` is the start-all script provided in this repo; you copy it
-into `$BASE_DIR/llama.cpp/` in install step 6. It reads `$BASE_DIR` too
-(default: `$HOME/Scrivania`), so it always finds `owui.env`, `searxng/` and
-`openwebui/data` where you put them.
+into `$HOME/llama-ai/llama.cpp/` in install step 6. It uses the same
+`$HOME/llama-ai` folder by default, so it always finds `owui.env`,
+`searxng/` and `openwebui/data` where you put them.
 
 Each install step below states where you work. Follow them in order.
 
@@ -106,7 +89,7 @@ Each install step below states where you work. Follow them in order.
 
 ## Install step 1 - Build llama.cpp with Vulkan
 
-**Work in:** `$BASE_DIR/` (you do not need to create the folder, the
+**Work in:** `$HOME/llama-ai/` (you do not need to create the folder, the
 clone does it).
 
 To use an AMD GPU you need the Vulkan backend. CUDA is not required.
@@ -118,7 +101,7 @@ sudo apt install build-essential cmake git \
   glslang-tools glslc spirv-headers
 
 # clone and build
-cd "$BASE_DIR"
+cd "$HOME/llama-ai"
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 cmake -B build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
@@ -143,7 +126,7 @@ curl -L -C - -o models/llama-3.2-3b-instruct-q4_k_m.gguf \
 
 ## Install step 2 - Download the models
 
-**Work in:** `$BASE_DIR/llama.cpp/` (from step 1). Models go into the
+**Work in:** `$HOME/llama-ai/llama.cpp/` (from step 1). Models go into the
 `models/` folder.
 
 Main model:
@@ -179,7 +162,7 @@ Notes:
 
 ## Install step 3 - Create the venv and install Open WebUI
 
-**Work in:** `$BASE_DIR/llama.cpp/` (from step 2). The venv is created
+**Work in:** `$HOME/llama-ai/llama.cpp/` (from step 2). The venv is created
 here as `./venv` and reused by everything else.
 
 **Debian 13 ships only Python 3.13, but Open WebUI requires Python 3.11/3.12.**
@@ -210,12 +193,12 @@ Notes:
 - The venv is **mandatory**: do not install Open WebUI with system pip.
 
 Manual first start (optional: you normally do this in step 6 with the start
-script, which uses the same data folder `$BASE_DIR/openwebui/data`). You are
+script, which uses the same data folder `$HOME/llama-ai/openwebui/data`). You are
 asked to create the administrator account, or it is created automatically from
 the `WEBUI_ADMIN_*` variables:
 
 ```bash
-export DATA_DIR=$BASE_DIR/openwebui/data
+export DATA_DIR=$HOME/llama-ai/openwebui/data
 export WEBUI_ADMIN_EMAIL=you@example.com
 export WEBUI_ADMIN_PASSWORD=your-password
 export WEBUI_ADMIN_NAME=YourName
@@ -224,22 +207,22 @@ venv/bin/open-webui serve --host 0.0.0.0 --port 3000
 
 ## Install step 4 - Install and configure SearXNG
 
-**Work in:** `$BASE_DIR/` (this is the one step OUTSIDE `llama.cpp/`;
+**Work in:** `$HOME/llama-ai/` (this is the one step OUTSIDE `llama.cpp/`;
 do not clone SearXNG inside it).
 
 SearXNG queries several search engines (Google, Bing, DuckDuckGo, ...) and
 returns clean results. It is not installed as a pip package: it runs from a git
 clone, using the Python interpreter of the **same venv** from step 3 (no
 second venv, no system pip). `start_chat.sh` expects it at
-`$BASE_DIR/searxng`:
+`$HOME/llama-ai/searxng`:
 
 ```bash
 # run from ANY directory (paths are absolute)
-git clone https://github.com/searxng/searxng.git "$BASE_DIR/searxng"
-$BASE_DIR/llama.cpp/venv/bin/pip install -r "$BASE_DIR/searxng/requirements.txt"
+git clone https://github.com/searxng/searxng.git "$HOME/llama-ai/searxng"
+$HOME/llama-ai/llama.cpp/venv/bin/pip install -r "$HOME/llama-ai/searxng/requirements.txt"
 ```
 
-Create `$BASE_DIR/searxng/settings.yml`. The minimal working
+Create `$HOME/llama-ai/searxng/settings.yml`. The minimal working
 configuration is:
 
 ```yaml
@@ -276,14 +259,14 @@ imported from the current directory). Normally `start_chat.sh` does this for
 you:
 
 ```bash
-cd "$BASE_DIR/searxng"
+cd "$HOME/llama-ai/searxng"
 SEARXNG_SETTINGS_PATH=$PWD/settings.yml \
-  "$BASE_DIR/llama.cpp/venv/bin/python3" -m searx.webapp
+  "$HOME/llama-ai/llama.cpp/venv/bin/python3" -m searx.webapp
 ```
 
 ## Install step 5 - Create the admin credentials
 
-**File:** `$BASE_DIR/owui.env` (outside the repo, never committed).
+**File:** `$HOME/llama-ai/owui.env` (outside the repo, never committed).
 `start_chat.sh` fails if this file is missing. Copy `.env.example` and fill it
 in:
 
@@ -295,12 +278,12 @@ WEBUI_ADMIN_NAME=YourName
 
 ## Install step 6 - Start everything
 
-**Work in:** `$BASE_DIR/llama.cpp/` (the script uses `./build`,
+**Work in:** `$HOME/llama-ai/llama.cpp/` (the script uses `./build`,
 `./venv`, `models/`). Copy `start_chat.sh` from this repo into that folder and
 run it:
 
 ```bash
-cd "$BASE_DIR/llama.cpp"
+cd "$HOME/llama-ai/llama.cpp"
 ./start_chat.sh
 ```
 
