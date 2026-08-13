@@ -5,11 +5,12 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="$HOME/Scrivania/owui.env"
-SEARXNG_DIR="$HOME/Scrivania/searxng"
+BASE_DIR="${BASE_DIR:-$HOME/Scrivania}"
+ENV_FILE="$BASE_DIR/owui.env"
+SEARXNG_DIR="$BASE_DIR/searxng"
 LOG_DIR="$DIR/logs"
 VENV="$DIR/venv"
-DATA_DIR="$HOME/Scrivania/openwebui/data"
+DATA_DIR="$BASE_DIR/openwebui/data"
 
 MODEL_ALIAS="Qwen3-8B-Q4_K_M"
 CUSTOM_MODEL_ID="qwen3-web"

@@ -36,25 +36,36 @@ How web search works: your question reaches Open WebUI, which asks SearXNG,
 takes the top results, injects them into the request to the model, and the
 model answers citing its sources ([1], [2], ...).
 
-## Hardware and system
+## Requirements
 
-- CPU/GPU: AMD with integrated **Radeon 680M** (Rembrandt), Vulkan **RADV** drivers
-- RAM: 16 GB (shared between CPU and integrated GPU)
-- OS: Linux (Debian)
-- Server reachable on the LAN at `192.168.1.XXX` (replace with your machine's IP)
+- **GPU with Vulkan support** (AMD RADV, Intel ANV, NVIDIA): required for the
+  Vulkan backend of llama.cpp. Works with discrete and integrated GPUs.
+- **RAM**: enough to hold the model plus the KV cache. Example: Qwen3 8B
+  Q4_K_M needs roughly 7 GB; a 1-3B model runs on 2-4 GB.
+- **OS**: Linux (Debian 13 tested; Ubuntu works the same).
+- **LAN**: the server is reachable from other PCs at
+  `http://<server-IP>:3000` (use your machine's IP, the examples use a
+  placeholder).
 
 ## Where everything lives
 
-All the work happens in `$HOME/Scrivania/` (`Scrivania` is the Italian
-"Desktop"). Two folders, with a fixed rule:
+All the work happens in a single base folder, `$BASE_DIR`. Set it once in your
+terminal and reuse it for every command below:
 
-- **Inside `llama.cpp/`** -> llama.cpp source, `build/`, `models/`, `venv/`,
-  `logs/`, `start_chat.sh`
-- **Outside it, in `$HOME/Scrivania/`** -> `searxng/`, `openwebui/data/`,
+```bash
+export BASE_DIR=$HOME/Scrivania    # example; Scrivania = Italian "Desktop"
+```
+
+It can be any path you like (`$HOME/llama-ai`, `$HOME/Desktop`, ...). Two
+folders, with a fixed rule:
+
+- **Inside `$BASE_DIR/llama.cpp/`** -> llama.cpp source, `build/`, `models/`,
+  `venv/`, `logs/`, `start_chat.sh`
+- **Outside it, directly in `$BASE_DIR/`** -> `searxng/`, `openwebui/data/`,
   `owui.env`
 
 ```
-$HOME/Scrivania/
+$BASE_DIR/
 ├── owui.env              # admin credentials (never committed, see .env.example)
 ├── llama.cpp/            # everything created in install steps 1-3
 │   ├── build/            # compiled llama.cpp binaries (llama-server, ...)
@@ -67,10 +78,13 @@ $HOME/Scrivania/
 ```
 
 **One venv for everything.** There is a single virtual environment at
-`llama.cpp/venv`, created in step 3 and shared by Open WebUI and SearXNG.
-Always call it by full path (`$HOME/Scrivania/llama.cpp/venv/bin/...`). Never
-use `sudo pip` system-wide: the system Python is 3.13 and cannot install Open
-WebUI.
+`$BASE_DIR/llama.cpp/venv`, created in step 3 and shared by Open WebUI and
+SearXNG. Always call it by full path
+(`$BASE_DIR/llama.cpp/venv/bin/...`). Never use `sudo pip` system-wide: the
+system Python is 3.13 and cannot install Open WebUI.
+
+`start_chat.sh` reads `$BASE_DIR` too (default: `$HOME/Scrivania`), so it
+always finds `owui.env`, `searxng/` and `openwebui/data` where you put them.
 
 Each install step below states where you work. Follow them in order.
 
@@ -78,7 +92,7 @@ Each install step below states where you work. Follow them in order.
 
 ## Install step 1 - Build llama.cpp with Vulkan
 
-**Work in:** `$HOME/Scrivania/` (you do not need to create the folder, the
+**Work in:** `$BASE_DIR/` (you do not need to create the folder, the
 clone does it).
 
 To use an AMD GPU you need the Vulkan backend. CUDA is not required.
@@ -90,7 +104,7 @@ sudo apt install build-essential cmake git \
   glslang-tools glslc spirv-headers
 
 # clone and build
-cd "$HOME/Scrivania"
+cd "$BASE_DIR"
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 cmake -B build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
@@ -103,8 +117,8 @@ Verify the GPU is detected:
 ./build/bin/llama-bench -m models/llama-3.2-3b-instruct-q4_k_m.gguf -p 32 -n 16 -ngl 99 -r 1
 ```
 
-You should see `AMD Radeon Graphics (RADV REMBRANDT)` and the result row must
-report `Vulkan` as the backend.
+You should see your GPU name (for example `AMD Radeon Graphics (RADV)`) and the
+result row must report `Vulkan` as the backend.
 
 Note: this benchmark needs the Llama 3.2 3B file first. Download it with:
 
@@ -115,7 +129,7 @@ curl -L -C - -o models/llama-3.2-3b-instruct-q4_k_m.gguf \
 
 ## Install step 2 - Download the models
 
-**Work in:** `$HOME/Scrivania/llama.cpp/` (from step 1). Models go into the
+**Work in:** `$BASE_DIR/llama.cpp/` (from step 1). Models go into the
 `models/` folder.
 
 Main model:
@@ -151,7 +165,7 @@ Notes:
 
 ## Install step 3 - Create the venv and install Open WebUI
 
-**Work in:** `$HOME/Scrivania/llama.cpp/` (from step 2). The venv is created
+**Work in:** `$BASE_DIR/llama.cpp/` (from step 2). The venv is created
 here as `./venv` and reused by everything else.
 
 **Debian 13 ships only Python 3.13, but Open WebUI requires Python 3.11/3.12.**
@@ -182,11 +196,11 @@ Notes:
 - The venv is **mandatory**: do not install Open WebUI with system pip.
 
 Manual first start (normally `start_chat.sh` does this for you, with data in
-`$HOME/Scrivania/openwebui/data`). You are asked to create the administrator
+`$BASE_DIR/openwebui/data`). You are asked to create the administrator
 account, or it is created automatically from the `WEBUI_ADMIN_*` variables:
 
 ```bash
-export DATA_DIR=$HOME/Scrivania/openwebui/data
+export DATA_DIR=$BASE_DIR/openwebui/data
 export WEBUI_ADMIN_EMAIL=you@example.com
 export WEBUI_ADMIN_PASSWORD=your-password
 export WEBUI_ADMIN_NAME=YourName
@@ -195,22 +209,22 @@ venv/bin/open-webui serve --host 0.0.0.0 --port 3000
 
 ## Install step 4 - Install and configure SearXNG
 
-**Work in:** `$HOME/Scrivania/` (this is the one step OUTSIDE `llama.cpp/`;
+**Work in:** `$BASE_DIR/` (this is the one step OUTSIDE `llama.cpp/`;
 do not clone SearXNG inside it).
 
 SearXNG queries several search engines (Google, Bing, DuckDuckGo, ...) and
 returns clean results. It is not installed as a pip package: it runs from a git
 clone, using the Python interpreter of the **same venv** from step 3 (no
 second venv, no system pip). `start_chat.sh` expects it at
-`$HOME/Scrivania/searxng`:
+`$BASE_DIR/searxng`:
 
 ```bash
 # run from ANY directory (paths are absolute)
-git clone https://github.com/searxng/searxng.git "$HOME/Scrivania/searxng"
-$HOME/Scrivania/llama.cpp/venv/bin/pip install -r "$HOME/Scrivania/searxng/requirements.txt"
+git clone https://github.com/searxng/searxng.git "$BASE_DIR/searxng"
+$BASE_DIR/llama.cpp/venv/bin/pip install -r "$BASE_DIR/searxng/requirements.txt"
 ```
 
-Create `$HOME/Scrivania/searxng/settings.yml`. The minimal working
+Create `$BASE_DIR/searxng/settings.yml`. The minimal working
 configuration is:
 
 ```yaml
@@ -247,14 +261,14 @@ imported from the current directory). Normally `start_chat.sh` does this for
 you:
 
 ```bash
-cd "$HOME/Scrivania/searxng"
+cd "$BASE_DIR/searxng"
 SEARXNG_SETTINGS_PATH=$PWD/settings.yml \
-  "$HOME/Scrivania/llama.cpp/venv/bin/python3" -m searx.webapp
+  "$BASE_DIR/llama.cpp/venv/bin/python3" -m searx.webapp
 ```
 
 ## Install step 5 - Create the admin credentials
 
-**File:** `$HOME/Scrivania/owui.env` (outside the repo, never committed).
+**File:** `$BASE_DIR/owui.env` (outside the repo, never committed).
 `start_chat.sh` fails if this file is missing. Copy `.env.example` and fill it
 in:
 
@@ -266,12 +280,12 @@ WEBUI_ADMIN_NAME=YourName
 
 ## Install step 6 - Start everything
 
-**Work in:** `$HOME/Scrivania/llama.cpp/` (the script uses `./build`,
+**Work in:** `$BASE_DIR/llama.cpp/` (the script uses `./build`,
 `./venv`, `models/`). Copy `start_chat.sh` from this repo into that folder and
 run it:
 
 ```bash
-cd "$HOME/Scrivania/llama.cpp"
+cd "$BASE_DIR/llama.cpp"
 ./start_chat.sh
 ```
 
@@ -299,9 +313,10 @@ llama-server runs as a **multi-model router**: it loads models from the
   --port 8080
 ```
 
-KV cache: 32 attention layers with dim 1024 => at 16384 tokens in q8_0 about
-1 GiB of RAM/VRAM is needed, the same as 8192 tokens in f16. Doubling the
-context costs no memory.
+KV cache: its size depends on the model architecture and the context length.
+Quantizing it (`-ctk q8_0 -ctv q8_0`) roughly halves the memory cost compared
+to f16; halving the context (`-c 8192`) halves it again. Start with
+`-c 16384` and lower it if your GPU/RAM is tight.
 
 ## Use it locally or from another PC
 
@@ -381,7 +396,7 @@ CONTEXT_COMPACTION_RETENTION_PERCENTAGE=30
 | A model does not appear in Open WebUI | GGUF missing from `models/` or router not restarted | copy the GGUF into `models/` and restart llama-server |
 | Web search always fails | `settings.yml` missing `formats: json` | add `- json` under `search.formats` and restart SearXNG |
 | `pip install open-webui` fails: "No matching distribution found" | system Python is 3.13 (Debian 13 default), Open WebUI needs `<3.13` | install Python 3.12 with pyenv and recreate the venv (install step 3) |
-| VRAM full / model does not fit | quant too high or huge context | use Q4_K_M and `-c 16384`, KV in q8_0 |
+| VRAM full / model does not fit | quant too high or huge context | use a Q4_K_M quant, a smaller `-c`, KV in q8_0 |
 
 ## References
 
