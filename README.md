@@ -221,6 +221,8 @@ In the chat, pick the model **Qwen3 4B (Web)**.
 | `venv/bin/pip` not found | You are not in the `llama.cpp` folder. Run `cd "$HOME/llama-ai/llama.cpp"` and check the `venv` folder exists. |
 | Web search does nothing | Check `$HOME/llama-ai/searxng/settings.yml` still has `- json` under `search.formats`. |
 | Model does not answer / cites nothing | Select a "Web" model in the chat and turn the search toggle on. |
+| Model answers without using the web / with a wrong date | The search results were not sent: use a fresh chat, pick the "(Web)" model and make sure the Web Search toggle is on. Long chats make the prompt huge and slow. |
+| Everything is slow | Small GPUs (e.g. an AMD Radeon RX 500 series) are slow at prompt processing: keep chats short and use the smallest model available. |
 | Download stopped halfway | Run the same `curl -L -C -` command again to resume. |
 
 ## References
